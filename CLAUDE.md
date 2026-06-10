@@ -12,12 +12,25 @@ built in **Godot 4.6** (mechanics faithful to *Clusterz!*, our own grimdark leve
 
 ## Tooling & workflow
 
-**Prefer the Godot MCP** for anything involving the running engine — launch the game,
-read logs/`print()`/errors, scaffold scenes, screenshot, run tests. It's the primary
-run+debug loop. The MCP server is **`godot-mcp-enhanced`** (configured in `.mcp.json`,
-prefix `mcp__godot__*`) — a large toolset (140+ tools). Discover exact tool names with
-`ToolSearch` (e.g. "godot run project", "godot screenshot", "godot run tests") rather than
-assuming; names differ from the basic server. Hand-author `.tscn` when you need exact control.
+**Default to the Godot MCP — it is the primary run+debug loop, not a last resort.**
+For *anything* involving the running engine — launching the game, reading
+logs/`print()`/errors, inspecting the scene tree or node properties, scaffolding scenes,
+screenshotting, running tests — **reach for `mcp__godot__*` FIRST.** Only fall back to a
+shell command (PowerShell/Bash `Start-Process`, `--headless`, `System.Drawing`, etc.) when
+no MCP tool fits or the MCP path has actually failed — and when you do, say *why* in one line.
+If you're about to shell out to drive the engine, stop and `ToolSearch` for the MCP tool first.
+
+The MCP server is **`godot-mcp-enhanced`** (configured in `.mcp.json`, prefix `mcp__godot__*`)
+— a large toolset (140+ tools). Discover exact tool names with `ToolSearch` (e.g. "godot run
+project", "godot screenshot", "godot game query", "godot run tests") rather than assuming;
+names differ from the basic server. Rough map of what to reach for:
+- **Run / inspect a live game:** `mcp__godot__game` (`game_bridge_install`, then `game_query`
+  for `get_tree`/`find_nodes`/`get_node_properties`/`take_screenshot`, `game_input` to drive it).
+- **Headless scene render + AI look:** `mcp__godot__screenshot` (`capture` then `analyze`).
+- **Runtime state / logs:** `mcp__godot__runtime`, `mcp__godot__game` queries.
+- **Scenes / scripts / tests:** `mcp__godot__scene`, `mcp__godot__script`, `mcp__godot__test`.
+
+Hand-author `.tscn` when you need exact control.
 - Godot executable: `C:\Program Files\Godot\Godot.exe` (also in `.mcp.json` env `GODOT_PATH`).
 - Enhanced features (live editor edits, editor screenshots) need the in-editor plugin
   **MCP Server** enabled (it is, in `project.godot [editor_plugins]`) and the editor running;
@@ -33,14 +46,24 @@ Prints a pass/fail summary; config (`dirs`, `prefix`, `should_exit`) is in `.gut
 **Reimport first** (`--headless --import`) after adding/renaming `class_name` types so the
 global class cache is current. Keep the rules core (`GridModel`) covered.
 
-**Live gameplay verification:** synthetic *mouse* clicks do NOT reach the Godot window
-(keyboard does). To exercise the fire→land→attach pipeline, set env `SOP_AUTOPLAY=1` and
-run via PowerShell with `-RedirectStandardOutput`; the controller fires scripted shots and
-prints `[FIRE]/[LAND]/[DROP]` events (gated behind `_debug`). A real mouse works in normal play.
+**Scratch files go in `temp/`.** Every intermediate/throwaway file a session generates —
+screenshots, redirected stdout/stderr logs, cropped frames, scratch inputs/outputs — **must**
+be written under `temp/` (gitignored). Never scatter `_run.log`/`_anim_*.png`-style files in
+the project root. Clean up when done, but `temp/` keeps stray artifacts out of `git status`
+regardless.
 
-**Screenshots:** no MCP screenshot tool — capture the running window via PowerShell
-`System.Drawing` + `GetWindowRect`/`CopyFromScreen` (window title "Spheres of Pain").
-Always *look* at the screenshot; a blank frame is a failed launch.
+**Live gameplay verification:** synthetic *mouse* clicks do NOT reach the Godot window
+(keyboard does). To exercise the fire→land→attach pipeline, set env `SOP_AUTOPLAY=1`; the
+controller fires scripted shots and prints `[FIRE]/[LAND]/[DROP]` events (gated behind
+`_debug`). Prefer driving + reading this via the Godot MCP (`mcp__godot__game`); if you must
+shell out, redirect output into `temp/`. A real mouse works in normal play.
+
+**Screenshots:** prefer the MCP — `mcp__godot__screenshot` (headless scene `capture`, then
+`analyze`) or `mcp__godot__game` `take_screenshot` for the *running* game (needs
+`game_bridge_install`). PowerShell `System.Drawing` + `GetWindowRect`/`CopyFromScreen` (window
+title "Spheres of Pain") is the **fallback** for grabbing the actual OS window — e.g. a real
+fullscreen play session — and it must save into `temp/`. Always *look* at the result; a blank
+frame is a failed launch.
 
 **When unsure about a Godot API/component, consult the docs — don't guess:**
 - Docs index: <https://docs.godotengine.org/en/stable/index.html>

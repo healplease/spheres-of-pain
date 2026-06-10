@@ -3,3 +3,8 @@
 /android/
 .vscode/
 addons/
+
+# Scratch dir for Claude/session intermediate files (screenshots, logs, redirected
+# stdout, etc). Keep the folder, ignore its contents.
+temp/*
+!temp/.gitkeep
