@@ -72,9 +72,11 @@ func _ready() -> void:
 	board.setup(model, _mesh, _mats, _black_mat, diameter)
 
 	shooter.position = to3d(muzzle2d)
-	shooter.setup(_mesh, _mats, SPHERE_RADIUS)
+	# Pick the queued colours BEFORE setup() so its refresh_colors() shows the real
+	# loaded colour — otherwise the muzzle paints colour 0 (red) on the first shot.
 	shooter.current_color = _rand_color()
 	shooter.next_color = _rand_color()
+	shooter.setup(_mesh, _mats, SPHERE_RADIUS)
 	shooter.fired.connect(_on_fired)
 
 	preview.mesh = _preview_mesh
@@ -277,8 +279,14 @@ func _build_test_board() -> void:
 	model.cells[Vector2i(7, 3)] = GridModel.BLACK
 
 
+## A random colour drawn only from those still present on the board, so the gun
+## never offers a colour that can no longer be matched. Falls back to colour 0 if
+## the board has no breakable spheres left (game already won).
 func _rand_color() -> int:
-	return randi() % num_colors
+	var present := model.present_colors()
+	if present.is_empty():
+		return 0
+	return present[randi() % present.size()]
 
 
 func _mat_for(color: int) -> StandardMaterial3D:
@@ -336,6 +344,11 @@ func _on_missed() -> void:
 func _advance_load() -> void:
 	shooter.current_color = shooter.next_color
 	shooter.next_color = _rand_color()
+	# The promoted colour (the old `next`) may have just been wiped off the board by
+	# the shot that resolved — if so, re-roll it from what's still present.
+	var present := model.present_colors()
+	if not present.is_empty() and shooter.current_color not in present:
+		shooter.current_color = present[randi() % present.size()]
 	shooter.refresh_colors()
 
 

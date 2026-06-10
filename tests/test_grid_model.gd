@@ -116,6 +116,26 @@ func test_randomize_keeps_black() -> void:
 	assert_between(m.cells[Vector2i(0, 0)], 0, m.num_colors - 1, "randomized colour within range")
 
 
+# --- present colours ----------------------------------------------------------
+
+func test_present_colors_distinct_and_sorted() -> void:
+	var m := _make_model()
+	m.cells = {Vector2i(0, 0): 2, Vector2i(1, 0): 0, Vector2i(2, 0): 2, Vector2i(3, 0): 4}
+	assert_eq(m.present_colors(), [0, 2, 4] as Array[int], "distinct breakable colours, ascending")
+
+
+func test_present_colors_excludes_black() -> void:
+	var m := _make_model()
+	m.cells = {Vector2i(0, 0): GridModel.BLACK, Vector2i(1, 0): 3}
+	assert_eq(m.present_colors(), [3] as Array[int], "black is not a queueable colour")
+
+
+func test_present_colors_empty_on_clear_field() -> void:
+	var m := _make_model()
+	m.cells = {}
+	assert_true(m.present_colors().is_empty(), "no colours on an empty field")
+
+
 # --- win / lose ---------------------------------------------------------------
 
 func test_won_when_only_black_remains() -> void:

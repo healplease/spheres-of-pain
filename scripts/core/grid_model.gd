@@ -53,6 +53,19 @@ func has_neighbor(cell: Vector2i) -> bool:
 			return true
 	return false
 
+## The distinct breakable colours currently on the board, ascending. The shooter
+## uses this so it never queues a colour the player can no longer match — a colour
+## eliminated from the field must drop out of the gun.
+func present_colors() -> Array[int]:
+	var seen := {}
+	for c in cells.values():
+		if c >= 0:
+			seen[c] = true
+	var out: Array[int] = []
+	out.assign(seen.keys())
+	out.sort()
+	return out
+
 
 # --- core rules ---------------------------------------------------------------
 
