@@ -365,7 +365,9 @@ func _on_landed(cell: Vector2i, color: int) -> void:
 			" orphaned=", res.orphaned.size(), " coloured=", model.count_colored())
 	if not res.did_pop:
 		model.grow()
-	board.sync([cell])   # the landed sphere appears full-size; grown spheres animate in
+	# On a pop, ripple the clear outward from the impact cell; on a dud the grown
+	# spheres just animate in (no removals, so pop_origin is irrelevant).
+	board.sync([cell], cell)   # the landed sphere appears full-size; grown spheres animate in
 	_advance_load()
 	shooter.enabled = true
 	_check_end()

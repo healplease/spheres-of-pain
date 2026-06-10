@@ -34,6 +34,25 @@ static func neighbors(cell: Vector2i) -> Array[Vector2i]:
 	return out
 
 
+## Step distance between two cells on the lattice — the number of neighbour hops,
+## i.e. each cell in neighbors(a) is distance 1 from a. Computed via cube
+## coordinates so it's the true geometric hex distance, not a flood-fill.
+static func distance(a: Vector2i, b: Vector2i) -> int:
+	var ca := _to_cube(a)
+	var cb := _to_cube(b)
+	# Sum of the cube-axis deltas is always even, so this halving is exact.
+	@warning_ignore("integer_division")
+	return (abs(ca.x - cb.x) + abs(ca.y - cb.y) + abs(ca.z - cb.z)) / 2
+
+
+## odd-r offset cell -> cube coordinates (x + y + z == 0). The subtracted term is
+## always even, so the integer division is exact for negative rows too.
+static func _to_cube(cell: Vector2i) -> Vector3i:
+	var x := cell.x - (cell.y - (cell.y & 1)) / 2
+	var z := cell.y
+	return Vector3i(x, -x - z, z)
+
+
 static func cell_to_world(cell: Vector2i, origin: Vector2, d: float) -> Vector2:
 	var x_off := d * 0.5 if (cell.y & 1) == 1 else 0.0
 	return Vector2(

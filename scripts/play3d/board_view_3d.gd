@@ -25,6 +25,7 @@ const PALETTE: Array[Color] = [
 const SPAWN_TIME := 0.25   # grow-from-a-point duration for newly created spheres
 const POP_TIME := 0.20     # expand-and-fade duration for cleared spheres
 const POP_SCALE := 1.3     # how far a dying sphere swells before vanishing
+const POP_STAGGER := 0.1   # extra delay per unit of hex distance from the pop origin
 
 var model: GridModel
 var diameter := 56.0
@@ -62,7 +63,10 @@ func _build_all() -> void:
 ##   removed   -> expand-and-fade pop
 ## `instant_cells` are cells that should appear full-size — e.g. the just-landed
 ## sphere, whose arrival the projectile already animated.
-func sync(instant_cells: Array = []) -> void:
+## When `pop_origin` is given (the cell the shot landed on), removed spheres pop in
+## a ripple: each waits POP_STAGGER per unit of hex distance from that origin, so
+## the cluster clears outward from the impact. Without it, all pops fire at once.
+func sync(instant_cells: Array = [], pop_origin = null) -> void:
 	# Added + recoloured.
 	for cell in model.cells:
 		var c: int = model.cells[cell]
@@ -78,7 +82,10 @@ func sync(instant_cells: Array = []) -> void:
 		if not model.cells.has(cell):
 			gone.append(cell)
 	for cell in gone:
-		_pop(cell)
+		var delay := 0.0
+		if pop_origin != null:
+			delay = Hex.distance(pop_origin, cell) * POP_STAGGER
+		_pop(cell, delay)
 
 
 func _mat_for(color: int) -> Material:
@@ -111,10 +118,21 @@ func _spawn(cell: Vector2i, color: int, instant: bool) -> void:
 
 ## Clear a sphere with an expand-and-fade pop, then free it. Removed from the
 ## tracking dict up front so a fast follow-up shot can refill the cell with a
-## fresh instance (the dying one keeps animating independently).
-func _pop(cell: Vector2i) -> void:
+## fresh instance (the dying one keeps animating independently). `delay` defers the
+## start of the animation (the sphere sits full-size until its turn in the ripple).
+func _pop(cell: Vector2i, delay := 0.0) -> void:
 	var mi: MeshInstance3D = _spheres[cell]
 	_spheres.erase(cell)
+	if delay > 0.0:
+		get_tree().create_timer(delay).timeout.connect(_play_pop.bind(mi))
+	else:
+		_play_pop(mi)
+
+
+## Run the expand-and-fade on an already-detached sphere, then free it.
+func _play_pop(mi: MeshInstance3D) -> void:
+	if not is_instance_valid(mi):
+		return
 	# Materials are shared across same-colour spheres; duplicate so fading this
 	# one doesn't fade the others.
 	var m := mi.material_override.duplicate() as StandardMaterial3D

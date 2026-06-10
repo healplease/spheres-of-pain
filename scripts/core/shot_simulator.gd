@@ -11,6 +11,15 @@ extends RefCounted
 ## Returns {path: PackedVector2Array, cell: Vector2i, miss: false} for a hit, or
 ## {path, miss: true} for a shot that exits the bottom without attaching.
 
+## How close (as a fraction of the cell spacing `diameter`) the moving sphere's
+## centre must come to a settled sphere's centre to count as a hit. At 0.92 the two
+## rendered spheres just touch (radius 0.46·diameter each); using less than that
+## gives the *moving* sphere a smaller hitbox than it looks, so a precise shot can
+## be threaded through a narrow gap between two field spheres — a skill play. Kept
+## above ~0.5 so a shot can't pass straight through two touching spheres. Both the
+## aim preview and the live shot run this same simulate(), so they stay identical.
+const HIT_DISTANCE_SCALE := 0.78
+
 var model: GridModel
 var diameter := 56.0
 var columns := 11
@@ -58,7 +67,7 @@ func simulate(start: Vector2, dir: Vector2) -> Dictionary:
 func _nearest_occupied(p: Vector2):
 	var base := Hex.world_to_cell(p, origin, diameter)
 	var best = null
-	var bestd := diameter * 0.92
+	var bestd := diameter * HIT_DISTANCE_SCALE
 	var candidates: Array[Vector2i] = [base]
 	candidates.append_array(Hex.neighbors(base))
 	for c in candidates:
