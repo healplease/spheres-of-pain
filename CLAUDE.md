@@ -114,12 +114,15 @@ Always *look* at the screenshot; a blank frame is a failed launch.
 
 - **Strict model/view split.** Rules live in pure-logic `GridModel` (RefCounted, unit-tested);
   views only reflect the model and never mutate game state.
-- **Layout:** `scripts/core/` (pure logic), `scripts/play/` (node behavior), `scenes/`,
+- **3D only.** The game ships as a single 3D presentation (`scripts/play3d/`, `scenes/level_3d.tscn`).
+  The old 2D presentation has been removed. The simulation still runs in **logical 2D pixel space**
+  (`GridModel` + `ShotSimulator`); the 3D views map that plane to/from world space via `to3d`/`to2d`
+  (one cell ≈ 1 m). Keep that model/sim dimension-agnostic — only `scripts/play3d/` knows about 3D.
+- **Layout:** `scripts/core/` (pure logic), `scripts/play3d/` (3D node behavior), `scenes/`,
   `levels/` (level `.tres`), `tests/`, `art/ audio/ shaders/ themes/`.
 - **Levels are data, not code** (`LevelResource` `.tres`) once M2 lands.
 - **Input via the named InputMap action `fire`** (LMB), checked with `event.is_action_pressed(...)`.
-- **Gotcha:** a full-screen `Control` (e.g. the Background `ColorRect`) defaults to `mouse_filter = STOP`
-  and swallows every click before it reaches gameplay `_unhandled_input` — keyboard is unaffected, so
-  it looks like "fire is broken but Space works". Set such Controls to `mouse_filter = 2` (Ignore).
+  The window runs **fullscreen** (`display/window/size/mode=3`); `LevelController3D._input` quits on
+  `ui_cancel` (Esc) so there's a way out.
 - Keep every rule (match, isolation, growth, randomize) isolated and swappable — the exact
   Clusterz fidelity of a few rules is still being verified against the original.

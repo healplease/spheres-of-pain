@@ -9,6 +9,9 @@ extends Node3D
 
 const S := 1.0 / 56.0          # metres per logical pixel; one cell ≈ 1 m
 const SPHERE_RADIUS := 0.46
+const FRAME_THICK := 0.3       # frame bar cross-section (metres)
+const FRAME_DEPTH := 0.6       # frame bar depth toward the camera (metres)
+const MARGIN_PX := 50.0        # reserved screen margin, top and bottom (design px)
 
 @export var diameter := 56.0
 @export var columns := 11
@@ -77,7 +80,9 @@ func _ready() -> void:
 	preview.mesh = _preview_mesh
 	preview.material_override = _preview_mat
 
+	_build_frame()
 	_place_camera()
+	get_viewport().size_changed.connect(_place_camera)
 	_update_status()
 
 	if OS.has_environment("SOP_AUTOPLAY"):
@@ -137,7 +142,7 @@ func _build_visual_assets() -> void:
 	_mesh = SphereMesh.new()
 	_mesh.radius = SPHERE_RADIUS
 	_mesh.height = SPHERE_RADIUS * 2.0
-	for col in BoardView.PALETTE:
+	for col in BoardView3D.PALETTE:
 		var m := StandardMaterial3D.new()
 		m.albedo_color = col
 		m.metallic = 0.25
@@ -171,12 +176,96 @@ func _setup_environment() -> void:
 
 
 func _place_camera() -> void:
-	var top := to3d(Vector2(muzzle2d.x, origin2d.y))
-	var bot := to3d(Vector2(muzzle2d.x, sim.play_bottom))
-	var center := (top + bot) * 0.5
-	camera.position = center + Vector3(0.0, 1.5, 15.5)
-	camera.look_at(center + Vector3(0.0, -1.0, 0.0), Vector3.UP)
+	# Frame the whole play field (its outer frame) head-on, reserving MARGIN_PX of
+	# screen at the top and bottom. The viewport is the 1280x720 design space
+	# (canvas_items stretch), so the margin is deterministic across resolutions.
+	var b := _frame_bounds(FRAME_THICK)   # outer edge of the frame
+	var center := Vector3((b.x + b.y) * 0.5, (b.z + b.w) * 0.5, 0.0)
+	var field_h := absf(b.z - b.w)
+	var field_w := absf(b.y - b.x)
+	var vp := get_viewport().get_visible_rect().size
+	if vp.y <= 0.0:
+		return
 	camera.fov = 52.0
+	var tan_half := tan(deg_to_rad(camera.fov) * 0.5)
+	var v_frac: float = maxf(0.2, (vp.y - 2.0 * MARGIN_PX) / vp.y)
+	var aspect: float = vp.x / vp.y
+	var d_fit_height := (field_h / v_frac) / (2.0 * tan_half)
+	var d_fit_width := field_w / (2.0 * tan_half * aspect)
+	var d: float = maxf(d_fit_height, d_fit_width)
+	camera.position = center + Vector3(0.0, 0.0, d)
+	camera.look_at(center, Vector3.UP)
+
+
+## World-space bounce rectangle, padded outward by `pad`. Returns (left_x,
+## right_x, top_y, bottom_y) as a Vector4. The inner faces (pad = 0) sit exactly
+## on the surfaces the ball reflects off: sides, the row-0 top wall, and the
+## bottom miss-exit line.
+func _frame_bounds(pad: float) -> Vector4:
+	var left_x := to3d(Vector2(sim.play_left, origin2d.y)).x - pad
+	var right_x := to3d(Vector2(sim.play_right, origin2d.y)).x + pad
+	var top_y := to3d(Vector2(origin2d.x, origin2d.y - diameter * 0.5)).y + pad
+	var bot_y := to3d(Vector2(origin2d.x, sim.play_bottom)).y - pad
+	return Vector4(left_x, right_x, top_y, bot_y)
+
+
+## Build a raised border so the player can read where the ball bounces. Left,
+## right and top are solid bounce walls; the bottom is a distinct red exit line
+## (the ball falls out there — it does not bounce). Lives directly under the
+## controller, NOT under Board (which frees its children on every rebuild).
+func _build_frame() -> void:
+	var b := _frame_bounds(0.0)
+	var left_x := b.x
+	var right_x := b.y
+	var top_y := b.z
+	var bot_y := b.w
+	var cx := (left_x + right_x) * 0.5
+	var cy := (top_y + bot_y) * 0.5
+	var span_x := right_x - left_x
+	var span_y := top_y - bot_y
+	var t := FRAME_THICK
+
+	var wall_mat := StandardMaterial3D.new()
+	wall_mat.albedo_color = Color(0.16, 0.15, 0.19)
+	wall_mat.metallic = 0.3
+	wall_mat.roughness = 0.6
+	wall_mat.emission_enabled = true
+	wall_mat.emission = Color(0.12, 0.11, 0.16)
+	wall_mat.emission_energy_multiplier = 0.6
+
+	var exit_mat := StandardMaterial3D.new()
+	exit_mat.albedo_color = Color(0.35, 0.05, 0.06)
+	exit_mat.roughness = 0.7
+	exit_mat.emission_enabled = true
+	exit_mat.emission = Color(0.5, 0.04, 0.05)
+	exit_mat.emission_energy_multiplier = 0.8
+
+	var frame := Node3D.new()
+	frame.name = "Frame"
+	add_child(frame)
+
+	# Bars are placed so their inner face aligns with the bounce surface (offset
+	# outward by half the bar thickness); side/top bars overlap at the corners.
+	_add_bar(frame, wall_mat, Vector3(t, span_y + t, FRAME_DEPTH), Vector3(left_x - t * 0.5, cy, 0.0))
+	_add_bar(frame, wall_mat, Vector3(t, span_y + t, FRAME_DEPTH), Vector3(right_x + t * 0.5, cy, 0.0))
+	_add_bar(frame, wall_mat, Vector3(span_x + t * 2.0, t, FRAME_DEPTH), Vector3(cx, top_y + t * 0.5, 0.0))
+	_add_bar(frame, exit_mat, Vector3(span_x + t * 2.0, t, FRAME_DEPTH * 0.6), Vector3(cx, bot_y - t * 0.5, 0.0))
+
+
+func _add_bar(parent: Node3D, mat: StandardMaterial3D, size: Vector3, pos: Vector3) -> void:
+	var mesh := BoxMesh.new()
+	mesh.size = size
+	var mi := MeshInstance3D.new()
+	mi.mesh = mesh
+	mi.material_override = mat
+	mi.position = pos
+	parent.add_child(mi)
+
+
+func _input(event: InputEvent) -> void:
+	# Fullscreen has no window chrome — give the player a way out.
+	if event.is_action_pressed("ui_cancel"):
+		get_tree().quit()
 
 
 func _build_test_board() -> void:
