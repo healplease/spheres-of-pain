@@ -91,13 +91,16 @@ func match_group(start: Vector2i) -> Array[Vector2i]:
 	group.assign(seen.keys())
 	return group
 
-## Orphans = occupied cells with NO neighbour at all (any neighbour, breakable or
+## Orphans = BREAKABLE cells with NO neighbour at all (any neighbour, breakable or
 ## unbreakable, keeps a sphere anchored). A lone sphere touching a black sphere is
-## NOT an orphan. Removing a zero-neighbour sphere can't orphan anything else, so
-## one pass is complete.
+## NOT an orphan. Black (unbreakable) spheres are never orphaned — they can and
+## should stay on the field even when isolated. Removing a zero-neighbour sphere
+## can't orphan anything else, so one pass is complete.
 func find_orphans() -> Array[Vector2i]:
 	var out: Array[Vector2i] = []
 	for cell in cells:
+		if cells[cell] < 0:
+			continue  # black/unbreakable spheres are never swept
 		if not has_neighbor(cell):
 			out.append(cell)
 	return out

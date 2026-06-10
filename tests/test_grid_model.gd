@@ -66,6 +66,25 @@ func test_find_orphans_only_lone_sphere() -> void:
 	assert_does_not_have(orph, Vector2i(1, 0), "sphere touching black is anchored")
 
 
+func test_find_orphans_never_sweeps_isolated_black() -> void:
+	var m := _make_model()
+	# A lone black sphere with no neighbours must stay; a lone breakable one goes.
+	m.cells = {Vector2i(0, 0): GridModel.BLACK, Vector2i(5, 5): 2}
+	var orph := m.find_orphans()
+	assert_does_not_have(orph, Vector2i(0, 0), "isolated black is never an orphan")
+	assert_has(orph, Vector2i(5, 5), "isolated breakable is still an orphan")
+
+
+func test_attach_does_not_pop_orphaned_black() -> void:
+	var m := _make_model()
+	# Black bridges two breakable groups; popping the breakables strands the black.
+	m.cells = {Vector2i(0, 0): 0, Vector2i(1, 0): 0, Vector2i(2, 0): GridModel.BLACK}
+	var res := m.attach(Vector2i(0, 1), 0)  # completes a triple of 0s that pops
+	assert_true(res.did_pop, "triple pops")
+	assert_does_not_have(res.orphaned, Vector2i(2, 0), "orphaned black is not swept")
+	assert_true(m.cells.has(Vector2i(2, 0)), "black survives on the field")
+
+
 func test_attach_sweeps_orphans_after_pop() -> void:
 	var m := _make_model()
 	m.cells = {Vector2i(0, 0): 0, Vector2i(1, 0): 0, Vector2i(0, 1): 1}

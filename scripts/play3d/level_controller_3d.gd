@@ -12,13 +12,27 @@ const SPHERE_RADIUS := 0.46
 const FRAME_THICK := 0.3       # frame bar cross-section (metres)
 const FRAME_DEPTH := 0.6       # frame bar depth toward the camera (metres)
 const MARGIN_PX := 50.0        # reserved screen margin, top and bottom (design px)
+const FIELD_CENTER_X := 640.0  # logical x the field + muzzle are centred on
+const TOP_Y := 80.0            # logical y of the row-0 sphere centres
+const GROWTH_BUFFER := 7       # empty rows below the fill before the danger line
 
 @export var diameter := 56.0
-@export var columns := 11
 @export var num_colors := 5
-@export var danger_row := 12
-@export var origin2d := Vector2(346, 80)   # logical board origin (cell 0,0)
-@export var muzzle2d := Vector2(640, 690)  # logical muzzle
+## Field size is rolled randomly inside these inclusive ranges on each level.
+@export var min_columns := 10
+@export var max_columns := 50
+@export var min_rows := 10
+@export var max_rows := 50
+@export_range(0.0, 0.3) var black_fraction := 0.06  # share of cells seeded black
+
+# Derived from the rolled field size in _pick_field_dimensions(); the camera then
+# reframes to whatever they produce, so any size in range is fully visible.
+var columns := 11
+var rows := 5
+var danger_row := 12
+var origin2d := Vector2(346, 80)   # logical board origin (cell 0,0)
+var muzzle2d := Vector2(640, 690)  # logical muzzle
+var _play_bottom := 720.0          # logical miss-exit line (below the muzzle)
 
 @onready var world_env: WorldEnvironment = $WorldEnvironment
 @onready var light: DirectionalLight3D = $DirectionalLight3D
@@ -54,12 +68,14 @@ func _ready() -> void:
 	_build_visual_assets()
 	_setup_environment()
 
+	_pick_field_dimensions()
+
 	model = GridModel.new()
 	model.width = columns
 	model.num_colors = num_colors
 	model.danger_row = danger_row
 	model.rng.randomize()
-	_build_test_board()
+	_build_board()
 
 	sim.model = model
 	sim.diameter = diameter
@@ -67,7 +83,7 @@ func _ready() -> void:
 	sim.origin = origin2d
 	sim.play_left = origin2d.x - diameter * 0.5
 	sim.play_right = origin2d.x + (columns - 1) * diameter + diameter
-	sim.play_bottom = 720.0
+	sim.play_bottom = _play_bottom
 
 	board.setup(model, _mesh, _mats, _black_mat, diameter)
 
@@ -270,13 +286,38 @@ func _input(event: InputEvent) -> void:
 		get_tree().quit()
 
 
-func _build_test_board() -> void:
-	for r in range(5):
+## Roll a random field size within the configured ranges and derive every logical
+## coordinate from it: the board origin (so the field stays centred on
+## FIELD_CENTER_X), the danger row (a fixed growth buffer below the fill), the
+## muzzle, and the bottom miss-exit line. The camera reframes to whatever this
+## produces (see _place_camera), so any size in range is captured in full.
+func _pick_field_dimensions() -> void:
+	columns = randi_range(min_columns, max_columns)
+	rows = randi_range(min_rows, max_rows)
+	var row_step := diameter * Hex.ROW_RATIO
+	# Centre the field horizontally: with this origin, (play_left + play_right) / 2
+	# lands on FIELD_CENTER_X regardless of column count.
+	origin2d = Vector2(FIELD_CENTER_X - diameter * (columns * 0.5 - 0.25), TOP_Y)
+	# Danger line a fixed buffer of empty rows below the initial fill; muzzle just
+	# below it; miss-exit just below the muzzle (≈0.6 of a row each, matching the
+	# original hand-tuned 12 / 690 / 720 layout).
+	danger_row = rows + GROWTH_BUFFER
+	var danger_y := origin2d.y + danger_row * row_step
+	muzzle2d = Vector2(FIELD_CENTER_X, danger_y + row_step * 0.6)
+	_play_bottom = muzzle2d.y + row_step * 0.6
+
+
+## Procedurally fill the field: every cell in the first `rows` rows takes a random
+## breakable colour, then a fraction are overwritten with unbreakable black
+## obstacles.
+func _build_board() -> void:
+	for r in range(rows):
 		for c in range(columns):
 			model.cells[Vector2i(c, r)] = randi() % num_colors
-	model.cells[Vector2i(5, 2)] = GridModel.BLACK
-	model.cells[Vector2i(3, 3)] = GridModel.BLACK
-	model.cells[Vector2i(7, 3)] = GridModel.BLACK
+	var black_count := int(round(rows * columns * black_fraction))
+	for _i in range(black_count):
+		var cell := Vector2i(randi() % columns, randi() % rows)
+		model.cells[cell] = GridModel.BLACK
 
 
 ## A random colour drawn only from those still present on the board, so the gun
