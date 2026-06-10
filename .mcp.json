@@ -1,0 +1,12 @@
+{
+  "mcpServers": {
+    "godot": {
+      "command": "npx",
+      "args": ["-y", "godot-mcp-enhanced"],
+      "env": {
+        "GODOT_PATH": "C:\\Program Files\\Godot\\Godot.exe",
+        "GODOT_PROJECT_PATH": "C:\\Users\\olhav\\Documents\\spheres-of-pain"
+      }
+    }
+  }
+}

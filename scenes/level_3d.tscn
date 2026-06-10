@@ -1,0 +1,41 @@
+[gd_scene load_steps=4 format=3]
+
+[ext_resource type="Script" path="res://scripts/play3d/level_controller_3d.gd" id="1_ctrl"]
+[ext_resource type="Script" path="res://scripts/play3d/board_view_3d.gd" id="2_board"]
+[ext_resource type="Script" path="res://scripts/play3d/shooter_3d.gd" id="3_shoot"]
+
+[node name="Level3D" type="Node3D"]
+script = ExtResource("1_ctrl")
+
+[node name="WorldEnvironment" type="WorldEnvironment" parent="."]
+
+[node name="DirectionalLight3D" type="DirectionalLight3D" parent="."]
+
+[node name="Camera3D" type="Camera3D" parent="."]
+
+[node name="Board" type="Node3D" parent="."]
+script = ExtResource("2_board")
+
+[node name="Shooter" type="Node3D" parent="."]
+script = ExtResource("3_shoot")
+
+[node name="Preview" type="MeshInstance3D" parent="."]
+
+[node name="Ui" type="CanvasLayer" parent="."]
+
+[node name="Status" type="Label" parent="Ui"]
+mouse_filter = 2
+offset_left = 20.0
+offset_top = 14.0
+offset_right = 1260.0
+offset_bottom = 40.0
+text = "Coloured spheres: --"
+
+[node name="Banner" type="Label" parent="Ui"]
+mouse_filter = 2
+visible = false
+offset_top = 300.0
+offset_right = 1280.0
+offset_bottom = 420.0
+theme_override_font_sizes/font_size = 56
+horizontal_alignment = 1

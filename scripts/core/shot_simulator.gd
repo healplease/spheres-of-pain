@@ -1,0 +1,96 @@
+class_name ShotSimulator
+extends RefCounted
+
+## Pure-logic ball-flight simulation on the logical 2D play plane. No nodes, no
+## rendering — shared by the 2D and 3D presentations: both run the SAME sim and
+## map the resulting path into their own space (2D uses it directly; 3D maps each
+## point onto the board plane). This keeps aim, wall bounces, and snapping
+## identical across dimensions.
+##
+## Walls: top (row 0 line) and sides reflect; the bottom is the miss-exit.
+## Returns {path: PackedVector2Array, cell: Vector2i, miss: false} for a hit, or
+## {path, miss: true} for a shot that exits the bottom without attaching.
+
+var model: GridModel
+var diameter := 56.0
+var columns := 11
+var origin := Vector2.ZERO
+var play_left := 0.0
+var play_right := 0.0
+var play_bottom := 0.0
+
+
+func simulate(start: Vector2, dir: Vector2) -> Dictionary:
+	var pts := PackedVector2Array([start])
+	var p := start
+	var v := dir.normalized()
+	var r := diameter * 0.5
+	var collided = null
+	for _i in range(6000):
+		p += v * 6.0
+		if p.x < play_left + r:
+			p.x = play_left + r
+			v.x = -v.x
+			pts.append(p)
+		elif p.x > play_right - r:
+			p.x = play_right - r
+			v.x = -v.x
+			pts.append(p)
+		if p.y <= origin.y:           # top wall: reflect downward
+			p.y = origin.y
+			v.y = -v.y
+			pts.append(p)
+		if p.y > play_bottom:         # exited the bottom -> miss
+			pts.append(p)
+			return {"path": pts, "miss": true}
+		var hit = _nearest_occupied(p)
+		if hit != null:
+			pts.append(p)
+			collided = hit
+			break
+	if collided == null:
+		return {"path": pts, "miss": true}
+	var cell: Vector2i = _snap_cell(p, collided)
+	pts.append(Hex.cell_to_world(cell, origin, diameter))
+	return {"path": pts, "cell": cell, "miss": false}
+
+
+func _nearest_occupied(p: Vector2):
+	var base := Hex.world_to_cell(p, origin, diameter)
+	var best = null
+	var bestd := diameter * 0.92
+	var candidates: Array[Vector2i] = [base]
+	candidates.append_array(Hex.neighbors(base))
+	for c in candidates:
+		if model.cells.has(c):
+			var d := p.distance_to(Hex.cell_to_world(c, origin, diameter))
+			if d < bestd:
+				bestd = d
+				best = c
+	return best
+
+
+func _snap_cell(p: Vector2, collided) -> Vector2i:
+	var base := Hex.world_to_cell(p, origin, diameter)
+	var cand := {base: true}
+	for nb in Hex.neighbors(base):
+		cand[nb] = true
+	if collided != null:
+		for nb in Hex.neighbors(collided):
+			cand[nb] = true
+	var best = null
+	var bestd := INF
+	for c in cand.keys():
+		if c.x < 0 or c.x >= columns or c.y < 0:
+			continue
+		if model.cells.has(c):
+			continue
+		if not model.has_neighbor(c):   # must touch the cluster to attach
+			continue
+		var d := p.distance_to(Hex.cell_to_world(c, origin, diameter))
+		if d < bestd:
+			bestd = d
+			best = c
+	if best == null:
+		return Vector2i(int(clampf(base.x, 0, columns - 1)), maxi(base.y, 0))
+	return best

@@ -1,0 +1,148 @@
+class_name GridModel
+extends RefCounted
+
+## Pure-logic model of the sphere field. No rendering, no Godot nodes — just the
+## rules, so it can be unit-tested headlessly. Views reflect this; this is the
+## single source of truth.
+##
+## Cells are stored sparsely: Dictionary[Vector2i] -> int colour id.
+##   colour >= 0 : a breakable (poppable) coloured sphere
+##   colour == BLACK : an unbreakable obstacle (never matches; still counts as a
+##                     neighbour, so it keeps adjacent spheres from being orphans)
+##   absent key   : empty cell
+##
+## Coordinate system: see Hex. The field is walled on top (row 0) and sides
+## (columns [0, width)); the bottom is open. Bubbles only enter by colliding with
+## the cluster — there is no top anchor and no row downshift.
+
+const BLACK := -1
+
+var cells: Dictionary = {}        # Vector2i -> int
+var width: int = 11               # columns [0, width)
+var num_colors: int = 5
+var danger_row: int = 12          # lose if any sphere occupies row >= this
+var rng := RandomNumberGenerator.new()
+
+
+## Result of resolving an attached sphere, returned to the controller so it can
+## drive presentation (and decide whether to grow the field).
+class AttachResult:
+	var popped: Array[Vector2i] = []      # cells removed by the match
+	var orphaned: Array[Vector2i] = []    # cells removed because they had no neighbours
+	var did_pop: bool = false             # true if a 3+ match cleared
+
+
+# --- queries ------------------------------------------------------------------
+
+func is_occupied(cell: Vector2i) -> bool:
+	return cells.has(cell)
+
+func is_empty(cell: Vector2i) -> bool:
+	return not cells.has(cell)
+
+func count_colored() -> int:
+	var n := 0
+	for c in cells.values():
+		if c >= 0:
+			n += 1
+	return n
+
+func has_neighbor(cell: Vector2i) -> bool:
+	for nb in Hex.neighbors(cell):
+		if cells.has(nb):
+			return true
+	return false
+
+
+# --- core rules ---------------------------------------------------------------
+
+## Flood-fill the connected same-colour group containing `start`. Black/empty
+## never match. Returns [] if start is not a breakable sphere.
+func match_group(start: Vector2i) -> Array[Vector2i]:
+	if not cells.has(start):
+		return []
+	var target: int = cells[start]
+	if target < 0:
+		return []
+	var seen := {start: true}
+	var stack: Array[Vector2i] = [start]
+	while not stack.is_empty():
+		var cell: Vector2i = stack.pop_back()
+		for nb in Hex.neighbors(cell):
+			if seen.has(nb):
+				continue
+			if cells.get(nb, -999) == target:
+				seen[nb] = true
+				stack.append(nb)
+	var group: Array[Vector2i] = []
+	group.assign(seen.keys())
+	return group
+
+## Orphans = occupied cells with NO neighbour at all (any neighbour, breakable or
+## unbreakable, keeps a sphere anchored). A lone sphere touching a black sphere is
+## NOT an orphan. Removing a zero-neighbour sphere can't orphan anything else, so
+## one pass is complete.
+func find_orphans() -> Array[Vector2i]:
+	var out: Array[Vector2i] = []
+	for cell in cells:
+		if not has_neighbor(cell):
+			out.append(cell)
+	return out
+
+## Place a sphere and resolve the match. A 3+ same-colour cluster is destroyed,
+## then any orphans created by that destruction are swept. On a dud (no match)
+## the caller grows the field instead.
+func attach(cell: Vector2i, color: int) -> AttachResult:
+	cells[cell] = color
+	var res := AttachResult.new()
+	var group := match_group(cell)
+	if group.size() >= 3:
+		res.did_pop = true
+		res.popped = group
+		for c in group:
+			cells.erase(c)
+		res.orphaned = find_orphans()
+		for c in res.orphaned:
+			cells.erase(c)
+	return res
+
+## Grow the field on a dud shot (cellular fill, no downshift): every empty cell
+## inside the walls with 1-4 BREAKABLE neighbours spawns a sphere whose colour is
+## copied from a random one of those neighbours. Cells with 5-6 breakable
+## neighbours stay empty (protected pockets). Computed simultaneously from a
+## pre-growth snapshot so new spheres don't cascade within one step.
+func grow() -> void:
+	var snapshot := cells.duplicate()
+	var candidates := {}
+	for cell in snapshot:
+		if snapshot[cell] < 0:
+			continue  # only breakable spheres seed growth
+		for nb in Hex.neighbors(cell):
+			if not snapshot.has(nb) and nb.x >= 0 and nb.x < width and nb.y >= 0:
+				candidates[nb] = true
+	for cell in candidates:
+		var colors: Array[int] = []
+		for nb in Hex.neighbors(cell):
+			if snapshot.has(nb) and snapshot[nb] >= 0:
+				colors.append(snapshot[nb])
+		if colors.size() >= 1 and colors.size() <= 4:
+			cells[cell] = colors[rng.randi_range(0, colors.size() - 1)]
+
+## Field reshuffle: every breakable sphere takes a new random colour; black stays.
+## Triggered when a shot misses entirely and exits the bottom of the field.
+func randomize_colors() -> void:
+	for cell in cells.keys():
+		if cells[cell] >= 0:
+			cells[cell] = rng.randi_range(0, num_colors - 1)
+
+
+# --- win / lose ---------------------------------------------------------------
+
+func is_won() -> bool:
+	return count_colored() == 0
+
+func is_lost() -> bool:
+	for cell in cells.keys():
+		if cell.y >= danger_row:
+			return true
+	return false
