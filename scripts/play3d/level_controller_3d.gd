@@ -316,7 +316,7 @@ func _on_landed(cell: Vector2i, color: int) -> void:
 			" orphaned=", res.orphaned.size(), " coloured=", model.count_colored())
 	if not res.did_pop:
 		model.grow()
-	board.rebuild()
+	board.sync([cell])   # the landed sphere appears full-size; grown spheres animate in
 	_advance_load()
 	shooter.enabled = true
 	_check_end()
@@ -327,7 +327,7 @@ func _on_missed() -> void:
 	if _debug:
 		print("[MISS] reshuffle; coloured=", model.count_colored())
 	model.randomize_colors()
-	board.rebuild()
+	board.sync()   # reshuffle only recolours; spheres stay, materials swap in place
 	_advance_load()
 	shooter.enabled = true
 	_update_status()

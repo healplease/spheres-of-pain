@@ -117,7 +117,7 @@ func _pop(cell: Vector2i) -> void:
 	_spheres.erase(cell)
 	# Materials are shared across same-colour spheres; duplicate so fading this
 	# one doesn't fade the others.
-	var m: StandardMaterial3D = mi.material_override.duplicate()
+	var m := mi.material_override.duplicate() as StandardMaterial3D
 	m.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
 	mi.material_override = m
 	var tw := mi.create_tween()
