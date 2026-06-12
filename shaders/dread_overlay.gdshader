@@ -12,7 +12,7 @@ uniform float aberration : hint_range(0.0, 0.02) = 0.006;
 // Rare glitch bursts (band tearing + extra RGB split + flicker). Off by
 // default so gameplay stays clean; the menus opt in with strength 1.
 uniform float glitch_strength : hint_range(0.0, 1.0) = 0.0;
-uniform float glitch_period = 9.0;   // seconds per burst window
+uniform float glitch_period = 60.0;   // seconds per burst window
 uniform float glitch_len = 0.22;     // burst duration inside the window
 
 float hash(vec2 p) {

@@ -448,6 +448,9 @@ func _on_fired() -> void:
 	proj.landed.connect(_on_landed)
 	proj.missed.connect(_on_missed)
 	add_child(proj)
+	# Reload immediately: the muzzle empties, the queued sphere slides in, a fresh
+	# next grows beside it — the gun shows its true colour while the shot flies.
+	shooter.reload(_rand_color())
 
 
 func _on_landed(cell: Vector2i, color: int) -> void:
@@ -459,11 +462,18 @@ func _on_landed(cell: Vector2i, color: int) -> void:
 		model.grow()
 	# On a pop, ripple the clear outward from the impact cell; on a dud the grown
 	# spheres just animate in (no removals, so pop_origin is irrelevant).
-	board.sync([cell], cell)   # the landed sphere appears full-size; grown spheres animate in
-	_advance_load()
-	shooter.enabled = true
-	_check_end()
+	var settle := board.sync([cell], cell)   # the landed sphere appears full-size
+	_validate_load()
 	_update_status()
+	# Hold the verdict until the board has visually settled — the win banner must
+	# not appear while the last cluster is still popping.
+	if model.is_won() or model.is_lost():
+		await get_tree().create_timer(settle + 0.25).timeout
+		if not is_inside_tree() or game_over:
+			return
+		_check_end()
+		return
+	shooter.enabled = true
 
 
 func _on_missed() -> void:
@@ -471,20 +481,27 @@ func _on_missed() -> void:
 		print("[MISS] reshuffle; coloured=", model.count_colored())
 	model.randomize_colors()
 	board.sync()   # reshuffle only recolours; spheres stay, materials swap in place
-	_advance_load()
+	_validate_load()
 	shooter.enabled = true
 	_update_status()
 
 
-func _advance_load() -> void:
-	shooter.current_color = shooter.next_color
-	shooter.next_color = _rand_color()
-	# The promoted colour (the old `next`) may have just been wiped off the board by
-	# the shot that resolved — if so, re-roll it from what's still present.
+## The slots were already advanced at fire time, but the shot that just resolved
+## may have wiped a slot's colour off the board (pop/sweep) or recoloured
+## everything (reshuffle) — re-roll any slot whose colour is no longer present.
+func _validate_load() -> void:
 	var present := model.present_colors()
-	if not present.is_empty() and shooter.current_color not in present:
+	if present.is_empty():
+		return
+	var changed := false
+	if shooter.current_color not in present:
 		shooter.current_color = present[randi() % present.size()]
-	shooter.refresh_colors()
+		changed = true
+	if shooter.next_color not in present:
+		shooter.next_color = present[randi() % present.size()]
+		changed = true
+	if changed:
+		shooter.refresh_colors()
 
 
 # --- end state ----------------------------------------------------------------

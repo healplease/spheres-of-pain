@@ -3,9 +3,9 @@
 // shudder for a fraction of a second. Vertex-only — glyph rendering untouched.
 shader_type canvas_item;
 
-uniform float interval = 5.0;       // seconds per shiver window (one shiver each)
-uniform float shiver_len = 0.3;     // how long a shiver lasts
-uniform float amplitude = 2.5;      // pixels
+uniform float interval = 15.0;       // seconds per shiver window (one shiver each)
+uniform float shiver_len = 1.5;     // how long a shiver lasts
+uniform float amplitude = 2.0;      // pixels
 uniform float speed = 70.0;         // tremor frequency
 
 float hash(float n) {

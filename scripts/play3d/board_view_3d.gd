@@ -66,12 +66,18 @@ func _build_all() -> void:
 ## When `pop_origin` is given (the cell the shot landed on), removed spheres pop in
 ## a ripple: each waits POP_STAGGER per unit of hex distance from that origin, so
 ## the cluster clears outward from the impact. Without it, all pops fire at once.
-func sync(instant_cells: Array = [], pop_origin = null) -> void:
+## Returns the time (seconds) until the last started animation finishes, so the
+## controller can hold the end-of-level banner until the field has visually settled.
+func sync(instant_cells: Array = [], pop_origin = null) -> float:
+	var settle := 0.0
 	# Added + recoloured.
 	for cell in model.cells:
 		var c: int = model.cells[cell]
 		if not _spheres.has(cell):
-			_spawn(cell, c, cell in instant_cells)
+			var instant: bool = cell in instant_cells
+			_spawn(cell, c, instant)
+			if not instant:
+				settle = maxf(settle, SPAWN_TIME)
 		elif int(_spheres[cell].get_meta("color")) != c:
 			var mi: MeshInstance3D = _spheres[cell]
 			mi.material_override = _mat_for(c)
@@ -86,6 +92,8 @@ func sync(instant_cells: Array = [], pop_origin = null) -> void:
 		if pop_origin != null:
 			delay = Hex.distance(pop_origin, cell) * POP_STAGGER
 		_pop(cell, delay)
+		settle = maxf(settle, delay + POP_TIME)
+	return settle
 
 
 func _mat_for(color: int) -> Material:
