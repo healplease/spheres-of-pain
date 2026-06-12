@@ -1,0 +1,17 @@
+[gd_resource type="Resource" script_class="LevelResource" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scripts/core/level_resource.gd" id="1_lvl"]
+
+[resource]
+script = ExtResource("1_lvl")
+id = 7
+title = "The Drowned Bell"
+lore_fragment = "It tolls beneath the water. Each toll is a name."
+width = 14
+num_colors = 5
+danger_row = 14
+abyss_color_a = Color(0.03, 0.07, 0.14, 1)
+abyss_color_b = Color(0.03, 0.11, 0.1, 1)
+ember_color = Color(0.45, 0.75, 1, 1)
+fog_color = Color(0.015, 0.03, 0.05, 1)
+layout = PackedStringArray(".....0123.....", "....123401....", "...23012340...", "...01234012...", "..1234012340..", "..3401231234..", "XX1230412302XX", "..XX0123XX....")

@@ -1,0 +1,17 @@
+[gd_resource type="Resource" script_class="LevelResource" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scripts/core/level_resource.gd" id="1_lvl"]
+
+[resource]
+script = ExtResource("1_lvl")
+id = 1
+title = "The Shallow Vein"
+lore_fragment = "The pit breathes. Feed it colour and it sleeps."
+width = 9
+num_colors = 3
+danger_row = 12
+abyss_color_a = Color(0.14, 0.04, 0.05, 1)
+abyss_color_b = Color(0.08, 0.05, 0.04, 1)
+ember_color = Color(1, 0.55, 0.3, 1)
+fog_color = Color(0.04, 0.02, 0.025, 1)
+layout = PackedStringArray("001122001", "110220112", "012012210", "201101022")

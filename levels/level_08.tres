@@ -1,0 +1,17 @@
+[gd_resource type="Resource" script_class="LevelResource" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scripts/core/level_resource.gd" id="1_lvl"]
+
+[resource]
+script = ExtResource("1_lvl")
+id = 8
+title = "Sleepless Hive"
+lore_fragment = "The hive does not sleep. It counts."
+width = 16
+num_colors = 5
+danger_row = 13
+abyss_color_a = Color(0.14, 0.09, 0.03, 1)
+abyss_color_b = Color(0.1, 0.06, 0.08, 1)
+ember_color = Color(1, 0.75, 0.3, 1)
+fog_color = Color(0.04, 0.03, 0.015, 1)
+layout = PackedStringArray("0123401234012340", "1234012340123401", "23.4012.4012.401", "340X234X340X2340", "012.3401.012.340", "123X0123X4123X01", "2340123401234012", "X40.012.X23.X401")

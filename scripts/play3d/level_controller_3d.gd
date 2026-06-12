@@ -15,6 +15,9 @@ const MARGIN_PX := 50.0        # reserved screen margin, top and bottom (design 
 const FIELD_CENTER_X := 640.0  # logical x the field + muzzle are centred on
 const TOP_Y := 80.0            # logical y of the row-0 sphere centres
 const GROWTH_BUFFER := 7       # empty rows below the fill before the danger line
+const BACKDROP_OFFSET := 12.0  # metres the abyss backdrop sits behind the board plane
+
+const DANGER_SHADER := preload("res://shaders/danger_line.gdshader")
 
 @export var diameter := 56.0
 @export var num_colors := 5
@@ -37,13 +40,21 @@ var _play_bottom := 720.0          # logical miss-exit line (below the muzzle)
 @onready var world_env: WorldEnvironment = $WorldEnvironment
 @onready var light: DirectionalLight3D = $DirectionalLight3D
 @onready var camera: Camera3D = $Camera3D
+@onready var backdrop: MeshInstance3D = $Backdrop
+@onready var embers: GPUParticles3D = $Embers
 @onready var board: BoardView3D = $Board
 @onready var shooter: Shooter3D = $Shooter
 @onready var preview: MeshInstance3D = $Preview
 @onready var status_label: Label = $Ui/Status
 @onready var banner_label: Label = $Ui/Banner
+@onready var lore_label: Label = $Ui/Lore
+@onready var end_panel: VBoxContainer = $Ui/EndPanel
+@onready var next_button: Button = $Ui/EndPanel/NextButton
+@onready var retry_button: Button = $Ui/EndPanel/RetryButton
+@onready var menu_button: Button = $Ui/EndPanel/MenuButton
 
 var model: GridModel
+var _level: LevelResource = null   # null = free play (random board)
 var sim := ShotSimulator.new()
 var _mesh: SphereMesh
 var _mats: Array[StandardMaterial3D] = []
@@ -53,6 +64,7 @@ var _preview_mat: StandardMaterial3D
 var _aim2d := Vector2(0, -1)
 var _last_sim: Dictionary = {}
 var game_over := false
+var aim_ray_enabled := false   # trajectory preview hidden by default; [A] toggles
 var _debug := false
 
 
@@ -68,14 +80,27 @@ func _ready() -> void:
 	_build_visual_assets()
 	_setup_environment()
 
-	_pick_field_dimensions()
+	# An authored level (selected in the level-select menu) defines the board;
+	# with no selection (running this scene directly) fall back to a random one.
+	_level = GameState.selected_level
+	if _level != null:
+		model = _level.build_model()
+		model.rng.randomize()
+		columns = _level.width
+		rows = _level.rows()
+		num_colors = _level.num_colors
+		danger_row = _level.danger_row
+		_layout_field()
+	else:
+		_pick_field_dimensions()
+		model = GridModel.new()
+		model.width = columns
+		model.num_colors = num_colors
+		model.danger_row = danger_row
+		model.rng.randomize()
+		_build_board()
 
-	model = GridModel.new()
-	model.width = columns
-	model.num_colors = num_colors
-	model.danger_row = danger_row
-	model.rng.randomize()
-	_build_board()
+	_apply_theme()
 
 	sim.model = model
 	sim.diameter = diameter
@@ -97,11 +122,20 @@ func _ready() -> void:
 
 	preview.mesh = _preview_mesh
 	preview.material_override = _preview_mat
+	preview.visible = aim_ray_enabled
 
 	_build_frame()
 	_place_camera()
+	_fit_embers()
 	get_viewport().size_changed.connect(_place_camera)
+
+	next_button.pressed.connect(GameState.start_next)
+	retry_button.pressed.connect(GameState.retry_level)
+	menu_button.pressed.connect(GameState.go_to_level_select)
+
 	_update_status()
+	if _level != null:
+		_show_intro()
 
 	if OS.has_environment("SOP_AUTOPLAY"):
 		_debug = true
@@ -184,8 +218,19 @@ func _setup_environment() -> void:
 	env.ambient_light_color = Color(0.4, 0.4, 0.5)
 	env.ambient_light_energy = 0.5
 	env.fog_enabled = true
-	env.fog_light_color = Color(0.03, 0.03, 0.05)
+	env.fog_light_color = Color(0.025, 0.02, 0.045)
 	env.fog_density = 0.015
+	# Glow for the pulsing danger line and the embers (both peak above 1.0);
+	# the abyss backdrop outputs plain ALBEDO so it can never bloom.
+	env.glow_enabled = true
+	env.glow_intensity = 0.7
+	env.glow_bloom = 0.0
+	env.glow_hdr_threshold = 1.0
+	env.glow_blend_mode = Environment.GLOW_BLEND_MODE_ADDITIVE
+	# Gentle grading toward the gothic-ink look: drained colour, a hair more bite.
+	env.adjustment_enabled = true
+	env.adjustment_saturation = 0.88
+	env.adjustment_contrast = 1.04
 	world_env.environment = env
 	light.rotation_degrees = Vector3(-50, -40, 0)
 	light.light_energy = 1.3
@@ -213,6 +258,48 @@ func _place_camera() -> void:
 	var d: float = maxf(d_fit_height, d_fit_width)
 	camera.position = center + Vector3(0.0, 0.0, d)
 	camera.look_at(center, Vector3.UP)
+	_fit_backdrop()
+
+
+## Size the abyss backdrop quad to cover the camera frustum at its depth (with
+## 15% margin), so no background_color slivers show at any field size.
+func _fit_backdrop() -> void:
+	var b := _frame_bounds(FRAME_THICK)
+	backdrop.position = Vector3((b.x + b.y) * 0.5, (b.z + b.w) * 0.5, -BACKDROP_OFFSET)
+	var dist := camera.position.z + BACKDROP_OFFSET
+	var vp := get_viewport().get_visible_rect().size
+	if vp.y <= 0.0:
+		return
+	var h := 2.0 * dist * tan(deg_to_rad(camera.fov) * 0.5) * 1.15
+	var w := h * (vp.x / vp.y) * 1.15
+	backdrop.scale = Vector3(w * 0.5, h * 0.5, 1.0)   # QuadMesh is 2x2
+
+
+## Tint the abyss, embers and fog to the level's palette. The shader/particle
+## materials are shared scene sub-resources that persist across scene reloads,
+## so free play must reset them explicitly (via a defaults instance) rather
+## than leaving whatever the last level set.
+func _apply_theme() -> void:
+	var theme := _level if _level != null else LevelResource.new()
+	var mat := backdrop.material_override as ShaderMaterial
+	mat.set_shader_parameter("violet", theme.abyss_color_a)
+	mat.set_shader_parameter("teal", theme.abyss_color_b)
+	world_env.environment.fog_light_color = theme.fog_color
+	var ember_mat := (embers.draw_pass_1 as QuadMesh).material as StandardMaterial3D
+	ember_mat.albedo_color = Color(theme.ember_color, 0.55)
+
+
+## Spread the ember particles across the whole play field (they float in a thin
+## slab in front of the board plane), with density scaled to the field area.
+func _fit_embers() -> void:
+	var b := _frame_bounds(0.0)
+	var span_x := b.y - b.x
+	var span_y := b.z - b.w
+	embers.position = Vector3((b.x + b.y) * 0.5, (b.z + b.w) * 0.5, 1.2)
+	var pm := embers.process_material as ParticleProcessMaterial
+	pm.emission_box_extents = Vector3(span_x * 0.5 + 1.0, span_y * 0.5 + 1.0, 1.5)
+	embers.amount = clampi(int(span_x * span_y * 0.35), 60, 400)
+	embers.restart()
 
 
 ## World-space bounce rectangle, padded outward by `pad`. Returns (left_x,
@@ -251,12 +338,8 @@ func _build_frame() -> void:
 	wall_mat.emission = Color(0.12, 0.11, 0.16)
 	wall_mat.emission_energy_multiplier = 0.6
 
-	var exit_mat := StandardMaterial3D.new()
-	exit_mat.albedo_color = Color(0.35, 0.05, 0.06)
-	exit_mat.roughness = 0.7
-	exit_mat.emission_enabled = true
-	exit_mat.emission = Color(0.5, 0.04, 0.05)
-	exit_mat.emission_energy_multiplier = 0.8
+	var exit_mat := ShaderMaterial.new()
+	exit_mat.shader = DANGER_SHADER
 
 	var frame := Node3D.new()
 	frame.name = "Frame"
@@ -270,7 +353,7 @@ func _build_frame() -> void:
 	_add_bar(frame, exit_mat, Vector3(span_x + t * 2.0, t, FRAME_DEPTH * 0.6), Vector3(cx, bot_y - t * 0.5, 0.0))
 
 
-func _add_bar(parent: Node3D, mat: StandardMaterial3D, size: Vector3, pos: Vector3) -> void:
+func _add_bar(parent: Node3D, mat: Material, size: Vector3, pos: Vector3) -> void:
 	var mesh := BoxMesh.new()
 	mesh.size = size
 	var mi := MeshInstance3D.new()
@@ -281,9 +364,12 @@ func _add_bar(parent: Node3D, mat: StandardMaterial3D, size: Vector3, pos: Vecto
 
 
 func _input(event: InputEvent) -> void:
-	# Fullscreen has no window chrome — give the player a way out.
+	# Fullscreen has no window chrome — give the player a way back.
 	if event.is_action_pressed("ui_cancel"):
-		get_tree().quit()
+		GameState.go_to_main_menu()
+	elif event.is_action_pressed("toggle_aim"):
+		aim_ray_enabled = not aim_ray_enabled
+		preview.visible = aim_ray_enabled and not game_over
 
 
 ## Roll a random field size within the configured ranges and derive every logical
@@ -294,14 +380,20 @@ func _input(event: InputEvent) -> void:
 func _pick_field_dimensions() -> void:
 	columns = randi_range(min_columns, max_columns)
 	rows = randi_range(min_rows, max_rows)
+	danger_row = rows + GROWTH_BUFFER
+	_layout_field()
+
+
+## Derive every logical coordinate from `columns` / `danger_row` (set either by
+## the random roll above or by an authored level): the board origin (field
+## centred on FIELD_CENTER_X), the muzzle just below the danger line, and the
+## bottom miss-exit line (≈0.6 of a row each, matching the original hand-tuned
+## 12 / 690 / 720 layout).
+func _layout_field() -> void:
 	var row_step := diameter * Hex.ROW_RATIO
 	# Centre the field horizontally: with this origin, (play_left + play_right) / 2
 	# lands on FIELD_CENTER_X regardless of column count.
 	origin2d = Vector2(FIELD_CENTER_X - diameter * (columns * 0.5 - 0.25), TOP_Y)
-	# Danger line a fixed buffer of empty rows below the initial fill; muzzle just
-	# below it; miss-exit just below the muzzle (≈0.6 of a row each, matching the
-	# original hand-tuned 12 / 690 / 720 layout).
-	danger_row = rows + GROWTH_BUFFER
 	var danger_y := origin2d.y + danger_row * row_step
 	muzzle2d = Vector2(FIELD_CENTER_X, danger_y + row_step * 0.6)
 	_play_bottom = muzzle2d.y + row_step * 0.6
@@ -399,21 +491,51 @@ func _advance_load() -> void:
 
 func _check_end() -> void:
 	if model.is_won():
-		_end("THE FIELD IS STILL.\nYou survive.")
+		_end("THE FIELD IS STILL.\nYou survive.", true)
 	elif model.is_lost():
-		_end("THE SPHERES CONSUME YOU.")
+		_end("THE SPHERES CONSUME YOU.", false)
 
 
-func _end(msg: String) -> void:
+func _end(msg: String, won: bool) -> void:
 	game_over = true
 	shooter.enabled = false
 	_preview_mesh.clear_surfaces()
 	banner_label.text = msg
 	banner_label.visible = true
+	lore_label.visible = false
+	if won and _level != null:
+		GameState.complete_current()
+	next_button.visible = won and _level != null and GameState.has_next()
+	retry_button.visible = not won and _level != null
+	end_panel.visible = true
+	# Hand keyboard focus to the most relevant choice so arrows + Enter work.
+	if next_button.visible:
+		next_button.grab_focus()
+	elif retry_button.visible:
+		retry_button.grab_focus()
+	else:
+		menu_button.grab_focus()
+
+
+## Level intro: title + lore over the board for a few seconds, then fade out
+## (unless the game somehow ended first — the end banner wins).
+func _show_intro() -> void:
+	banner_label.text = _level.title
+	banner_label.visible = true
+	lore_label.text = _level.lore_fragment
+	lore_label.visible = true
+	await get_tree().create_timer(3.0).timeout
+	if not is_inside_tree() or game_over:
+		return
+	banner_label.visible = false
+	lore_label.visible = false
 
 
 func _update_status() -> void:
-	status_label.text = "Coloured spheres: %d     [LMB] fire  —  match 3+ to clear, miss out the bottom to reshuffle  (3D)" % model.count_colored()
+	var prefix := ""
+	if _level != null:
+		prefix = "L%d  %s  —  " % [_level.id, _level.title]
+	status_label.text = prefix + "Coloured spheres: %d     [LMB] fire   [A] aim ray  —  match 3+ to clear, miss out the bottom to reshuffle" % model.count_colored()
 
 
 # --- dev autoplay -------------------------------------------------------------
