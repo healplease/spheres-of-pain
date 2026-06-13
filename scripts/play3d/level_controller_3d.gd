@@ -18,6 +18,11 @@ const GROWTH_BUFFER := 7       # empty rows below the fill before the danger lin
 const BACKDROP_OFFSET := 12.0  # metres the abyss backdrop sits behind the board plane
 
 const DANGER_SHADER := preload("res://shaders/danger_line.gdshader")
+const FRAME_SHADER := preload("res://shaders/frame_veins.gdshader")
+
+# Banner / lore / end-panel fade timings (seconds).
+const FADE_IN_TIME := 0.45
+const FADE_OUT_TIME := 0.7
 
 @export var diameter := 56.0
 @export var num_colors := 5
@@ -194,16 +199,35 @@ func _build_visual_assets() -> void:
 	_mesh = SphereMesh.new()
 	_mesh.radius = SPHERE_RADIUS
 	_mesh.height = SPHERE_RADIUS * 2.0
+	# Lacquered-glass look: clearcoat for a wet specular skin, a rim so spheres
+	# keep a readable silhouette against the dark abyss, and a whisper of
+	# self-emission (far below the bloom threshold) so they glow faintly in fog.
 	for col in BoardView3D.PALETTE:
 		var m := StandardMaterial3D.new()
 		m.albedo_color = col
-		m.metallic = 0.25
-		m.roughness = 0.45
+		m.metallic = 0.35
+		m.roughness = 0.3
+		m.clearcoat_enabled = true
+		m.clearcoat = 0.7
+		m.clearcoat_roughness = 0.15
+		m.rim_enabled = true
+		m.rim = 0.4
+		m.rim_tint = 0.35
+		m.emission_enabled = true
+		m.emission = col
+		m.emission_energy_multiplier = 0.06
 		_mats.append(m)
+	# Black spheres are polished obsidian: no inner light, just a hard sheen.
 	_black_mat = StandardMaterial3D.new()
-	_black_mat.albedo_color = Color(0.04, 0.04, 0.05)
-	_black_mat.metallic = 0.1
-	_black_mat.roughness = 0.8
+	_black_mat.albedo_color = Color(0.03, 0.03, 0.04)
+	_black_mat.metallic = 0.05
+	_black_mat.roughness = 0.45
+	_black_mat.clearcoat_enabled = true
+	_black_mat.clearcoat = 0.5
+	_black_mat.clearcoat_roughness = 0.1
+	_black_mat.rim_enabled = true
+	_black_mat.rim = 0.25
+	_black_mat.rim_tint = 0.0
 	_preview_mat = StandardMaterial3D.new()
 	_preview_mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
 	_preview_mat.albedo_color = Color(0.9, 0.85, 0.85, 0.55)
@@ -330,13 +354,12 @@ func _build_frame() -> void:
 	var span_y := top_y - bot_y
 	var t := FRAME_THICK
 
-	var wall_mat := StandardMaterial3D.new()
-	wall_mat.albedo_color = Color(0.16, 0.15, 0.19)
-	wall_mat.metallic = 0.3
-	wall_mat.roughness = 0.6
-	wall_mat.emission_enabled = true
-	wall_mat.emission = Color(0.12, 0.11, 0.16)
-	wall_mat.emission_energy_multiplier = 0.6
+	# Obsidian bars with ember veins crawling through them, tinted to the level's
+	# ember colour so the frame belongs to the same palette as the particles.
+	var theme := _level if _level != null else LevelResource.new()
+	var wall_mat := ShaderMaterial.new()
+	wall_mat.shader = FRAME_SHADER
+	wall_mat.set_shader_parameter("vein_color", theme.ember_color)
 
 	var exit_mat := ShaderMaterial.new()
 	exit_mat.shader = DANGER_SHADER
@@ -518,13 +541,16 @@ func _end(msg: String, won: bool) -> void:
 	shooter.enabled = false
 	_preview_mesh.clear_surfaces()
 	banner_label.text = msg
-	banner_label.visible = true
+	_fade_in(banner_label, FADE_IN_TIME)
+	_kill_fade(lore_label)
 	lore_label.visible = false
+	lore_label.modulate.a = 1.0
 	if won and _level != null:
 		GameState.complete_current()
 	next_button.visible = won and _level != null and GameState.has_next()
 	retry_button.visible = not won and _level != null
-	end_panel.visible = true
+	# The verdict lands first; the choices surface a beat later.
+	_fade_in(end_panel, FADE_IN_TIME, 0.35)
 	# Hand keyboard focus to the most relevant choice so arrows + Enter work.
 	if next_button.visible:
 		next_button.grab_focus()
@@ -534,18 +560,52 @@ func _end(msg: String, won: bool) -> void:
 		menu_button.grab_focus()
 
 
-## Level intro: title + lore over the board for a few seconds, then fade out
-## (unless the game somehow ended first — the end banner wins).
+## Level intro: title + lore fade in over the board, hold for a few seconds,
+## then dissolve (unless the game somehow ended first — the end banner wins).
 func _show_intro() -> void:
 	banner_label.text = _level.title
-	banner_label.visible = true
 	lore_label.text = _level.lore_fragment
-	lore_label.visible = true
+	_fade_in(banner_label, FADE_IN_TIME)
+	_fade_in(lore_label, FADE_IN_TIME, 0.25)
 	await get_tree().create_timer(3.0).timeout
 	if not is_inside_tree() or game_over:
 		return
-	banner_label.visible = false
-	lore_label.visible = false
+	_fade_out(banner_label, FADE_OUT_TIME)
+	_fade_out(lore_label, FADE_OUT_TIME)
+
+
+# --- ui fades -------------------------------------------------------------
+
+## Show `ctrl` by fading its modulate alpha up from zero (after `delay`).
+## Any fade already running on it is killed first, so rapid transitions
+## (intro fade-out interrupted by the end banner) can't stack.
+func _fade_in(ctrl: CanvasItem, dur: float, delay := 0.0) -> void:
+	_kill_fade(ctrl)
+	ctrl.modulate.a = 0.0
+	ctrl.visible = true
+	var tw := ctrl.create_tween()
+	if delay > 0.0:
+		tw.tween_interval(delay)
+	tw.tween_property(ctrl, "modulate:a", 1.0, dur)
+	ctrl.set_meta("fade_tween", tw)
+
+
+## Fade `ctrl` out, then hide it and restore full alpha for the next show.
+func _fade_out(ctrl: CanvasItem, dur: float) -> void:
+	_kill_fade(ctrl)
+	var tw := ctrl.create_tween()
+	tw.tween_property(ctrl, "modulate:a", 0.0, dur)
+	tw.tween_callback(func () -> void:
+		ctrl.visible = false
+		ctrl.modulate.a = 1.0)
+	ctrl.set_meta("fade_tween", tw)
+
+
+func _kill_fade(ctrl: CanvasItem) -> void:
+	if ctrl.has_meta("fade_tween"):
+		var tw: Tween = ctrl.get_meta("fade_tween")
+		if tw != null and tw.is_valid():
+			tw.kill()
 
 
 func _update_status() -> void:

@@ -1,10 +1,11 @@
-[gd_scene load_steps=16 format=3 uid="uid://bhb1b4x61mt0"]
+[gd_scene load_steps=18 format=3 uid="uid://bhb1b4x61mt0"]
 
 [ext_resource type="Script" uid="uid://djqufidh5xj6w" path="res://scripts/play3d/level_controller_3d.gd" id="1_ctrl"]
 [ext_resource type="Script" uid="uid://iqjmc6ome2v" path="res://scripts/play3d/board_view_3d.gd" id="2_board"]
 [ext_resource type="Script" uid="uid://5vrvar2kdqo4" path="res://scripts/play3d/shooter_3d.gd" id="3_shoot"]
 [ext_resource type="Shader" path="res://shaders/abyss_backdrop.gdshader" id="4_abyss"]
 [ext_resource type="Shader" path="res://shaders/dread_overlay.gdshader" id="5_dread"]
+[ext_resource type="Shader" path="res://shaders/title_shiver.gdshader" id="6_title"]
 
 [sub_resource type="ShaderMaterial" id="ShaderMaterial_abyss"]
 shader = ExtResource("4_abyss")
@@ -64,6 +65,10 @@ size = Vector2(0.07, 0.07)
 [sub_resource type="ShaderMaterial" id="ShaderMaterial_dread"]
 shader = ExtResource("5_dread")
 
+[sub_resource type="ShaderMaterial" id="SM_banner"]
+shader = ExtResource("6_title")
+shader_parameter/seed = 3.7
+
 [node name="Level3D" type="Node3D" unique_id=1146993431]
 script = ExtResource("1_ctrl")
 
@@ -116,6 +121,7 @@ text = "Coloured spheres: --"
 
 [node name="Banner" type="Label" parent="Ui" unique_id=1120620941]
 visible = false
+material = SubResource("SM_banner")
 offset_top = 230.0
 offset_right = 1280.0
 offset_bottom = 400.0
