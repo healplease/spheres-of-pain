@@ -14,7 +14,7 @@ const FRAME_DEPTH := 0.6       # frame bar depth toward the camera (metres)
 const MARGIN_PX := 50.0        # reserved screen margin, top and bottom (design px)
 const FIELD_CENTER_X := 640.0  # logical x the field + muzzle are centred on
 const TOP_Y := 80.0            # logical y of the row-0 sphere centres
-const GROWTH_BUFFER := 7       # empty rows below the fill before the danger line
+const GROWTH_BUFFER := 9       # empty rows below the fill before the danger line
 const BACKDROP_OFFSET := 12.0  # metres the abyss backdrop sits behind the board plane
 
 const DANGER_SHADER := preload("res://shaders/danger_line.gdshader")
@@ -61,9 +61,10 @@ var _play_bottom := 720.0          # logical miss-exit line (below the muzzle)
 var model: GridModel
 var _level: LevelResource = null   # null = free play (random board)
 var sim := ShotSimulator.new()
+var _bag := ShotBag.new()          # decides the gun's next colour (true-random or bag mode)
 var _mesh: SphereMesh
 var _mats: Array[StandardMaterial3D] = []
-var _black_mat: StandardMaterial3D
+var _black_mat: ShaderMaterial   # obsidian + self-lit fresnel rim (shaders/obsidian_rim.gdshader)
 var _preview_mesh := ImmediateMesh.new()
 var _preview_mat: StandardMaterial3D
 var _aim2d := Vector2(0, -1)
@@ -118,6 +119,10 @@ func _ready() -> void:
 	board.setup(model, _mesh, _mats, _black_mat, diameter)
 
 	shooter.position = to3d(muzzle2d)
+	# Configure the colour source before the first draw: true-random or the fair bag,
+	# per the Gameplay setting (read once — settings aren't reachable mid-level).
+	_bag.rng.randomize()
+	_bag.true_random = Settings.true_random()
 	# Pick the queued colours BEFORE setup() so its refresh_colors() shows the real
 	# loaded colour — otherwise the muzzle paints colour 0 (red) on the first shot.
 	shooter.current_color = _rand_color()
@@ -127,12 +132,15 @@ func _ready() -> void:
 
 	preview.mesh = _preview_mesh
 	preview.material_override = _preview_mat
+	aim_ray_enabled = Settings.aim_enabled()   # seed from the Gameplay setting; [A] still toggles in-session
 	preview.visible = aim_ray_enabled
 
 	_build_frame()
 	_place_camera()
 	_fit_embers()
 	get_viewport().size_changed.connect(_place_camera)
+	# Live-update glow/SSAO/shadows if the player changes Graphics settings while a level runs.
+	Settings.graphics_changed.connect(_apply_graphics_settings)
 
 	next_button.pressed.connect(GameState.start_next)
 	retry_button.pressed.connect(GameState.retry_level)
@@ -217,17 +225,13 @@ func _build_visual_assets() -> void:
 		m.emission = col
 		m.emission_energy_multiplier = 0.06
 		_mats.append(m)
-	# Black spheres are polished obsidian: no inner light, just a hard sheen.
-	_black_mat = StandardMaterial3D.new()
-	_black_mat.albedo_color = Color(0.03, 0.03, 0.04)
-	_black_mat.metallic = 0.05
-	_black_mat.roughness = 0.45
-	_black_mat.clearcoat_enabled = true
-	_black_mat.clearcoat = 0.5
-	_black_mat.clearcoat_roughness = 0.1
-	_black_mat.rim_enabled = true
-	_black_mat.rim = 0.25
-	_black_mat.rim_tint = 0.0
+	# Black spheres are polished obsidian. A StandardMaterial3D rim needs scene light
+	# to catch the edge, which the dark abyss doesn't provide — so these use a custom
+	# shader that drives a self-lit fresnel edge into EMISSION instead. The glowing
+	# silhouette reads against the near-black background (and blooms) while the face
+	# stays dark and unbreakable-looking.
+	_black_mat = ShaderMaterial.new()
+	_black_mat.shader = preload("res://shaders/obsidian_rim.gdshader")
 	_preview_mat = StandardMaterial3D.new()
 	_preview_mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
 	_preview_mat.albedo_color = Color(0.9, 0.85, 0.85, 0.55)
@@ -251,6 +255,7 @@ func _setup_environment() -> void:
 	env.glow_bloom = 0.0
 	env.glow_hdr_threshold = 1.0
 	env.glow_blend_mode = Environment.GLOW_BLEND_MODE_ADDITIVE
+	env.ssao_enabled = false   # overridden by _apply_graphics_settings() per the player's setting
 	# Gentle grading toward the gothic-ink look: drained colour, a hair more bite.
 	env.adjustment_enabled = true
 	env.adjustment_saturation = 0.88
@@ -259,7 +264,28 @@ func _setup_environment() -> void:
 	light.rotation_degrees = Vector3(-50, -40, 0)
 	light.light_energy = 1.3
 	light.light_color = Color(0.92, 0.88, 0.98)
-	light.shadow_enabled = true
+	# Glow / SSAO / shadow quality are player-controlled (Graphics settings); apply them now.
+	_apply_graphics_settings()
+
+
+## Apply the player's Graphics settings (glow / SSAO / shadow quality) onto the
+## already-built environment + light. Called once during setup and again whenever
+## the Settings autoload reports a change, so the look updates live.
+func _apply_graphics_settings() -> void:
+	var env := world_env.environment
+	if env == null:
+		return
+	env.glow_enabled = Settings.glow_enabled()
+	env.ssao_enabled = Settings.ssao_enabled()
+	match Settings.shadows():
+		SettingsStore.Shadows.OFF:
+			light.shadow_enabled = false
+		SettingsStore.Shadows.LOW:
+			light.shadow_enabled = true
+			light.directional_shadow_max_distance = 50.0
+		SettingsStore.Shadows.HIGH:
+			light.shadow_enabled = true
+			light.directional_shadow_max_distance = 100.0
 
 
 func _place_camera() -> void:
@@ -435,17 +461,14 @@ func _build_board() -> void:
 		model.cells[cell] = GridModel.BLACK
 
 
-## A random colour drawn only from those still present on the board, so the gun
-## never offers a colour that can no longer be matched. Falls back to colour 0 if
-## the board has no breakable spheres left (game already won).
+## The gun's next colour, drawn only from those still present on the board so it
+## never offers a colour that can no longer be matched. The ShotBag decides how
+## (independent random, or the fair bag); it returns 0 when the board is cleared.
 func _rand_color() -> int:
-	var present := model.present_colors()
-	if present.is_empty():
-		return 0
-	return present[randi() % present.size()]
+	return _bag.next(model.present_colors())
 
 
-func _mat_for(color: int) -> StandardMaterial3D:
+func _mat_for(color: int) -> Material:
 	return _black_mat if color < 0 else _mats[color % _mats.size()]
 
 
@@ -481,7 +504,11 @@ func _on_landed(cell: Vector2i, color: int) -> void:
 	if _debug:
 		print("[LAND] cell=", cell, " pop=", res.did_pop, " popped=", res.popped.size(),
 			" orphaned=", res.orphaned.size(), " coloured=", model.count_colored())
-	if not res.did_pop:
+	if res.did_pop:
+		# One cluster-sized pop burst, not one sound per sphere — keeps big clears
+		# (the matched group plus any spheres it orphans) from turning to noise.
+		Sound.play_cluster_pop(res.popped.size() + res.orphaned.size())
+	else:
 		model.grow()
 	# On a pop, ripple the clear outward from the impact cell; on a dud the grown
 	# spheres just animate in (no removals, so pop_origin is irrelevant).
@@ -518,10 +545,10 @@ func _validate_load() -> void:
 		return
 	var changed := false
 	if shooter.current_color not in present:
-		shooter.current_color = present[randi() % present.size()]
+		shooter.current_color = _bag.next(present)
 		changed = true
 	if shooter.next_color not in present:
-		shooter.next_color = present[randi() % present.size()]
+		shooter.next_color = _bag.next(present)
 		changed = true
 	if changed:
 		shooter.refresh_colors()

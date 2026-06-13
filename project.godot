@@ -20,6 +20,7 @@ config/icon="res://icon.svg"
 
 GameState="*res://scripts/game_state.gd"
 Sound="*res://scripts/sound_manager.gd"
+Settings="*res://scripts/settings.gd"
 
 [display]
 
@@ -58,4 +59,15 @@ toggle_aim={
 [rendering]
 
 rendering_device/driver.windows="d3d12"
-anti_aliasing/quality/msaa_3d=2
+anti_aliasing/quality/msaa_3d=3
+
+[shader_globals]
+
+text_glitch={
+"type": "float",
+"value": 1.0
+}
+text_aberration={
+"type": "float",
+"value": 1.0
+}

@@ -25,6 +25,10 @@ const POP_DB := -12.0
 const CLICK_DB := -8.0
 const HOVER_DB := -18.0
 
+# Gap between the individual pops of a cluster burst (seconds), so a big clear
+# reads as a few deliberate, sequenced pops instead of one mushy overlap.
+const POP_SEQUENCE_GAP := 0.09
+
 var _ambience: AudioStreamPlayer
 var _click: AudioStreamPlayer
 var _hover: AudioStreamPlayer
@@ -34,13 +38,15 @@ var _pops: AudioStreamPlayer
 func _ready() -> void:
 	process_mode = Node.PROCESS_MODE_ALWAYS
 
-	# Looping is set in the ogg's .import options (loop=true), not here.
-	_ambience = _make_player(&"Music", AMBIENCE_DB, 1)
+	# Looping is set in the ogg's .import options (loop=true), not here. Buses are
+	# split by category (Ambience / HUD / Gameplay, all under Master) so the Audio
+	# settings sliders can dial each independently; the BGM bus is reserved for future music.
+	_ambience = _make_player(&"Ambience", AMBIENCE_DB, 1)
 	_ambience.stream = AMBIENCE
 	_ambience.play()
 
-	_click = _make_player(&"SFX", CLICK_DB, 3)
-	_hover = _make_player(&"SFX", HOVER_DB, 3)
+	_click = _make_player(&"HUD", CLICK_DB, 3)
+	_hover = _make_player(&"HUD", HOVER_DB, 3)
 	_hover.stream = UI_HOVER
 
 	# Pop variations: the randomizer picks a stream and jitters pitch/volume per
@@ -51,7 +57,7 @@ func _ready() -> void:
 		rand.add_stream(-1, p)
 	rand.random_pitch = 1.12
 	rand.random_volume_offset_db = 2.0
-	_pops = _make_player(&"SFX", POP_DB, 12)
+	_pops = _make_player(&"Gameplay", POP_DB, 12)
 	_pops.stream = rand
 
 	get_tree().node_added.connect(_on_node_added)
@@ -59,6 +65,26 @@ func _ready() -> void:
 
 func play_pop() -> void:
 	_pops.play()
+
+
+## Play a burst of pops sized to how many spheres just cleared, so a large cluster
+## fires a handful of deliberate pops rather than one sound per bubble (which turns
+## to noise on big clears). Buckets: 3-5 -> 1, 6-9 -> 2, 10-15 -> 3, 16+ -> 4.
+func play_cluster_pop(cluster_size: int) -> void:
+	var count := _pop_count_for(cluster_size)
+	play_pop()
+	for i in range(1, count):
+		get_tree().create_timer(i * POP_SEQUENCE_GAP).timeout.connect(play_pop)
+
+
+func _pop_count_for(n: int) -> int:
+	if n >= 16:
+		return 4
+	if n >= 10:
+		return 3
+	if n >= 6:
+		return 2
+	return 1
 
 
 func play_click() -> void:

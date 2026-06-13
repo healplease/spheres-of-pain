@@ -13,11 +13,11 @@ const S := 1.0 / 56.0
 ## colorblind cue) in M3.
 const PALETTE: Array[Color] = [
 	Color("c0392b"),  # red
-	Color("27ae60"),  # green
-	Color("2980b9"),  # blue
+	Color("2ec24a"),  # green  — pulled toward pure green, brighter
+	Color("1f5ea8"),  # blue   — deeper, more saturated
 	Color("d4ac0d"),  # yellow
 	Color("8e44ad"),  # purple
-	Color("16a085"),  # teal
+	Color("1ec3e0"),  # cyan   — lighter and bluer, no longer reads as green
 	Color("d35400"),  # orange
 ]
 
@@ -31,11 +31,11 @@ var model: GridModel
 var diameter := 56.0
 var _mesh: Mesh
 var _mats: Array          # Array[StandardMaterial3D], indexed by colour id
-var _black_mat: StandardMaterial3D
+var _black_mat: ShaderMaterial
 var _spheres: Dictionary = {}   # Vector2i -> MeshInstance3D (live spheres only)
 
 
-func setup(p_model: GridModel, p_mesh: Mesh, p_mats: Array, p_black: StandardMaterial3D, p_diameter: float) -> void:
+func setup(p_model: GridModel, p_mesh: Mesh, p_mats: Array, p_black: ShaderMaterial, p_diameter: float) -> void:
 	model = p_model
 	_mesh = p_mesh
 	_mats = p_mats
@@ -141,7 +141,8 @@ func _pop(cell: Vector2i, delay := 0.0) -> void:
 func _play_pop(mi: MeshInstance3D) -> void:
 	if not is_instance_valid(mi):
 		return
-	Sound.play_pop()
+	# Sound is driven once per cluster by the controller (Sound.play_cluster_pop),
+	# not per sphere — a big clear would otherwise machine-gun the pop sample.
 	# Materials are shared across same-colour spheres; duplicate so fading this
 	# one doesn't fade the others.
 	var m := mi.material_override.duplicate() as StandardMaterial3D

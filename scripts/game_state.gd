@@ -7,6 +7,7 @@ extends Node
 const LEVEL_COUNT := 10
 const MAIN_MENU_SCENE := "res://scenes/main_menu.tscn"
 const LEVEL_SELECT_SCENE := "res://scenes/level_select.tscn"
+const SETTINGS_SCENE := "res://scenes/settings.tscn"
 const PLAY_SCENE := "res://scenes/level_3d.tscn"
 
 var progress := ProgressStore.new()
@@ -72,3 +73,9 @@ func go_to_level_select() -> void:
 	selected_index = -1
 	selected_level = null
 	get_tree().change_scene_to_file(LEVEL_SELECT_SCENE)
+
+
+func go_to_settings() -> void:
+	selected_index = -1
+	selected_level = null
+	get_tree().change_scene_to_file(SETTINGS_SCENE)

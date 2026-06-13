@@ -1,6 +1,6 @@
-[gd_scene load_steps=11 format=3]
+[gd_scene load_steps=12 format=3]
 
-[ext_resource type="Script" path="res://scripts/ui/main_menu.gd" id="1_menu"]
+[ext_resource type="Script" path="res://scripts/ui/settings.gd" id="1_settings"]
 [ext_resource type="Shader" path="res://shaders/abyss_menu.gdshader" id="2_abyss"]
 [ext_resource type="Shader" path="res://shaders/dread_overlay.gdshader" id="3_dread"]
 [ext_resource type="Shader" path="res://shaders/button_smoke.gdshader" id="4_smoke"]
@@ -20,14 +20,20 @@ shader = ExtResource("4_smoke")
 [sub_resource type="ShaderMaterial" id="SM_title"]
 shader = ExtResource("6_title")
 
-[node name="MainMenu" type="Control"]
+[sub_resource type="StyleBoxEmpty" id="SB_tabpad"]
+content_margin_left = 24.0
+content_margin_top = 16.0
+content_margin_right = 24.0
+content_margin_bottom = 16.0
+
+[node name="SettingsScene" type="Control"]
 layout_mode = 3
 anchors_preset = 15
 anchor_right = 1.0
 anchor_bottom = 1.0
 grow_horizontal = 2
 grow_vertical = 2
-script = ExtResource("1_menu")
+script = ExtResource("1_settings")
 
 [node name="Background" type="ColorRect" parent="."]
 material = SubResource("SM_bg")
@@ -57,7 +63,7 @@ grow_vertical = 2
 
 [node name="VBox" type="VBoxContainer" parent="Center"]
 layout_mode = 2
-theme_override_constants/separation = 14
+theme_override_constants/separation = 18
 alignment = 1
 
 [node name="Title" type="Label" parent="Center/VBox"]
@@ -67,38 +73,41 @@ theme_override_colors/font_color = Color(0.78, 0.72, 0.65, 1)
 theme_override_colors/font_shadow_color = Color(0.35, 0.05, 0.06, 0.6)
 theme_override_constants/shadow_offset_x = 0
 theme_override_constants/shadow_offset_y = 4
-theme_override_font_sizes/font_size = 72
-text = "SPHERES OF PAIN"
-horizontal_alignment = 1
-
-[node name="Tagline" type="Label" parent="Center/VBox"]
-layout_mode = 2
-theme_override_colors/font_color = Color(0.4, 0.36, 0.45, 1)
-theme_override_font_sizes/font_size = 18
-text = "the pit is patient"
-horizontal_alignment = 1
-
-[node name="Spacer" type="Control" parent="Center/VBox"]
-custom_minimum_size = Vector2(0, 48)
-layout_mode = 2
-
-[node name="SelectLevelButton" type="Button" parent="Center/VBox"]
-custom_minimum_size = Vector2(340, 60)
-layout_mode = 2
-theme_override_font_sizes/font_size = 24
-text = "SELECT LEVEL"
-
-[node name="SettingsButton" type="Button" parent="Center/VBox"]
-custom_minimum_size = Vector2(340, 60)
-layout_mode = 2
-theme_override_font_sizes/font_size = 24
+theme_override_font_sizes/font_size = 42
 text = "SETTINGS"
+horizontal_alignment = 1
 
-[node name="QuitButton" type="Button" parent="Center/VBox"]
-custom_minimum_size = Vector2(340, 60)
+[node name="Tabs" type="TabContainer" parent="Center/VBox"]
+custom_minimum_size = Vector2(760, 540)
 layout_mode = 2
-theme_override_font_sizes/font_size = 24
-text = "QUIT"
+theme_override_styles/panel = SubResource("SB_tabpad")
+tab_alignment = 1
+
+[node name="Gameplay" type="VBoxContainer" parent="Center/VBox/Tabs"]
+layout_mode = 2
+theme_override_constants/separation = 12
+
+[node name="Display" type="VBoxContainer" parent="Center/VBox/Tabs"]
+visible = false
+layout_mode = 2
+theme_override_constants/separation = 12
+
+[node name="Graphics" type="VBoxContainer" parent="Center/VBox/Tabs"]
+visible = false
+layout_mode = 2
+theme_override_constants/separation = 12
+
+[node name="Audio" type="VBoxContainer" parent="Center/VBox/Tabs"]
+visible = false
+layout_mode = 2
+theme_override_constants/separation = 12
+
+[node name="BackButton" type="Button" parent="Center/VBox"]
+custom_minimum_size = Vector2(200, 48)
+layout_mode = 2
+size_flags_horizontal = 4
+theme_override_font_sizes/font_size = 20
+text = "BACK"
 
 [node name="Overlay" type="ColorRect" parent="."]
 material = SubResource("SM_overlay")
@@ -109,7 +118,3 @@ anchor_bottom = 1.0
 grow_horizontal = 2
 grow_vertical = 2
 mouse_filter = 2
-
-[connection signal="pressed" from="Center/VBox/SelectLevelButton" to="." method="_on_select_level_pressed"]
-[connection signal="pressed" from="Center/VBox/SettingsButton" to="." method="_on_settings_pressed"]
-[connection signal="pressed" from="Center/VBox/QuitButton" to="." method="_on_quit_pressed"]

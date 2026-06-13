@@ -15,5 +15,9 @@ func _on_select_level_pressed() -> void:
 	GameState.go_to_level_select()
 
 
+func _on_settings_pressed() -> void:
+	GameState.go_to_settings()
+
+
 func _on_quit_pressed() -> void:
 	get_tree().quit()
