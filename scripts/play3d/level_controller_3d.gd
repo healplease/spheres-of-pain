@@ -147,6 +147,7 @@ func _ready() -> void:
 	menu_button.pressed.connect(GameState.go_to_level_select)
 
 	_update_status()
+	_update_heartbeat()   # an authored level could start already close to the line
 	if _level != null:
 		_show_intro()
 
@@ -412,6 +413,12 @@ func _add_bar(parent: Node3D, mat: Material, size: Vector3, pos: Vector3) -> voi
 	parent.add_child(mi)
 
 
+## Leaving the game screen (Esc to the menu, retry, next, any scene change) must cut
+## the dread pulses instantly — they belong to this level, not the menus.
+func _exit_tree() -> void:
+	Sound.stop_heartbeats()
+
+
 func _input(event: InputEvent) -> void:
 	# Fullscreen has no window chrome — give the player a way back.
 	if event.is_action_pressed("ui_cancel"):
@@ -515,6 +522,7 @@ func _on_landed(cell: Vector2i, color: int) -> void:
 	var settle := board.sync([cell], cell)   # the landed sphere appears full-size
 	_validate_load()
 	_update_status()
+	_update_heartbeat()   # a grow may have closed on the line; a pop may have backed off it
 	# Hold the verdict until the board has visually settled — the win banner must
 	# not appear while the last cluster is still popping.
 	if model.is_won() or model.is_lost():
@@ -534,6 +542,7 @@ func _on_missed() -> void:
 	_validate_load()
 	shooter.enabled = true
 	_update_status()
+	_update_heartbeat()
 
 
 ## The slots were already advanced at fire time, but the shot that just resolved
@@ -554,6 +563,22 @@ func _validate_load() -> void:
 		shooter.refresh_colors()
 
 
+# --- danger heartbeat ---------------------------------------------------------
+
+## Map how close the field is to the lose line onto the two dread pulses. Slow at
+## exactly two rows, fast at one (escalation: the two independent toggles let the
+## slow one fade out as the fast fades in). Anything else — safe, won, or lost —
+## silences both. Called after every shot resolves and when the game ends.
+func _update_heartbeat() -> void:
+	if game_over:
+		Sound.set_heartbeat_slow(false)
+		Sound.set_heartbeat_fast(false)
+		return
+	var d := model.rows_to_danger()
+	Sound.set_heartbeat_slow(d == 2)
+	Sound.set_heartbeat_fast(d == 1)
+
+
 # --- end state ----------------------------------------------------------------
 
 func _check_end() -> void:
@@ -566,6 +591,7 @@ func _check_end() -> void:
 func _end(msg: String, won: bool) -> void:
 	game_over = true
 	shooter.enabled = false
+	_update_heartbeat()   # game_over now true -> both pulses fade out (cleared or consumed)
 	_preview_mesh.clear_surfaces()
 	banner_label.text = msg
 	_fade_in(banner_label, FADE_IN_TIME)

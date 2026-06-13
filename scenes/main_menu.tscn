@@ -29,6 +29,16 @@ grow_horizontal = 2
 grow_vertical = 2
 script = ExtResource("1_menu")
 
+[node name="Void" type="ColorRect" parent="."]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 2
+color = Color(0, 0, 0, 1)
+
 [node name="Background" type="ColorRect" parent="."]
 material = SubResource("SM_bg")
 layout_mode = 1
@@ -109,6 +119,62 @@ anchor_bottom = 1.0
 grow_horizontal = 2
 grow_vertical = 2
 mouse_filter = 2
+
+[node name="IntroOverlay" type="Control" parent="."]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 2
+
+[node name="WordGroup" type="HBoxContainer" parent="IntroOverlay"]
+layout_mode = 1
+mouse_filter = 2
+theme_override_constants/separation = 28
+
+[node name="Word0" type="Label" parent="IntroOverlay/WordGroup"]
+material = SubResource("SM_title")
+modulate = Color(1, 1, 1, 0)
+layout_mode = 2
+mouse_filter = 2
+theme_override_colors/font_color = Color(0.78, 0.72, 0.65, 1)
+theme_override_colors/font_shadow_color = Color(0.35, 0.05, 0.06, 0.6)
+theme_override_constants/shadow_offset_x = 0
+theme_override_constants/shadow_offset_y = 5
+theme_override_font_sizes/font_size = 96
+text = "SPHERES"
+horizontal_alignment = 1
+vertical_alignment = 1
+
+[node name="Word1" type="Label" parent="IntroOverlay/WordGroup"]
+material = SubResource("SM_title")
+modulate = Color(1, 1, 1, 0)
+layout_mode = 2
+mouse_filter = 2
+theme_override_colors/font_color = Color(0.78, 0.72, 0.65, 1)
+theme_override_colors/font_shadow_color = Color(0.35, 0.05, 0.06, 0.6)
+theme_override_constants/shadow_offset_x = 0
+theme_override_constants/shadow_offset_y = 5
+theme_override_font_sizes/font_size = 96
+text = "OF"
+horizontal_alignment = 1
+vertical_alignment = 1
+
+[node name="Word2" type="Label" parent="IntroOverlay/WordGroup"]
+material = SubResource("SM_title")
+modulate = Color(1, 1, 1, 0)
+layout_mode = 2
+mouse_filter = 2
+theme_override_colors/font_color = Color(0.78, 0.72, 0.65, 1)
+theme_override_colors/font_shadow_color = Color(0.35, 0.05, 0.06, 0.6)
+theme_override_constants/shadow_offset_x = 0
+theme_override_constants/shadow_offset_y = 5
+theme_override_font_sizes/font_size = 96
+text = "PAIN"
+horizontal_alignment = 1
+vertical_alignment = 1
 
 [connection signal="pressed" from="Center/VBox/SelectLevelButton" to="." method="_on_select_level_pressed"]
 [connection signal="pressed" from="Center/VBox/SettingsButton" to="." method="_on_settings_pressed"]

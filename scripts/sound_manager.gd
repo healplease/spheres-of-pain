@@ -5,34 +5,49 @@ extends Node
 ## calls `Sound.play_*()`; nothing outside this singleton touches audio.
 
 const AMBIENCE := preload("res://audio/music/dungeon_ambient_1.ogg")
+const INTRO := preload("res://audio/music/intro.ogg")
 const UI_CLICK := preload("res://audio/sfx/ui/click_002.ogg")
 const UI_HOVER := preload("res://audio/sfx/ui/click_004.ogg")
 const UI_BACK := preload("res://audio/sfx/ui/back_002.ogg")
 const POPS: Array[AudioStream] = [
-	preload("res://audio/sfx/pops/universfield-bubble-pop-02-293341.wav"),
-	preload("res://audio/sfx/pops/universfield-bubble-pop-03-320977.wav"),
-	preload("res://audio/sfx/pops/universfield-bubble-pop-04-323580.wav"),
-	preload("res://audio/sfx/pops/universfield-bubble-pop-05-323639.wav"),
-	preload("res://audio/sfx/pops/universfield-bubble-pop-06-351337.wav"),
-	preload("res://audio/sfx/pops/universfield-bubble-pop-07-351339.wav"),
-	preload("res://audio/sfx/pops/universfield-bubble-pop-07-487896.wav"),
-	preload("res://audio/sfx/pops/universfield-bubble-pop-293342.wav"),
+	preload("res://audio/sfx/pops/pop1.ogg"),
+	preload("res://audio/sfx/pops/pop2.ogg"),
+	preload("res://audio/sfx/pops/pop3.ogg"),
+	preload("res://audio/sfx/pops/pop4.ogg"),
+	preload("res://audio/sfx/pops/pop5.ogg"),
+	preload("res://audio/sfx/pops/pop6.ogg"),
+	preload("res://audio/sfx/pops/pop7.ogg"),
+	preload("res://audio/sfx/pops/pop8.ogg"),
 ]
+# Looping tension pulses (loop=true is set in their .import). They play whenever the
+# field is one/two rows from the lose line; see set_heartbeat_* below.
+const HEARTBEAT_SLOW := preload("res://audio/sfx/heartbeat1.ogg")  # 2 rows from losing
+const HEARTBEAT_FAST := preload("res://audio/sfx/heartbeat2.ogg")  # 1 row from losing
 
 # Volume dials (dB). Tune to taste; buses give a second, global layer of control.
 const AMBIENCE_DB := -10.0
 const POP_DB := -12.0
 const CLICK_DB := -8.0
 const HOVER_DB := -18.0
+const INTRO_DB := 0.0
+const HEARTBEAT_DB := -4.0    # the heartbeats' "100%" target
+const SILENT_DB := -60.0      # effective silence (never linear_to_db(0) = -inf)
 
 # Gap between the individual pops of a cluster burst (seconds), so a big clear
 # reads as a few deliberate, sequenced pops instead of one mushy overlap.
 const POP_SEQUENCE_GAP := 0.09
+# How long a heartbeat takes to grow 0 -> 100% (and to fade back out), per spec.
+const HEARTBEAT_FADE := 1.0
 
 var _ambience: AudioStreamPlayer
+var _intro: AudioStreamPlayer
 var _click: AudioStreamPlayer
 var _hover: AudioStreamPlayer
 var _pops: AudioStreamPlayer
+var _hb_slow: AudioStreamPlayer
+var _hb_fast: AudioStreamPlayer
+var _hb_slow_tween: Tween
+var _hb_fast_tween: Tween
 
 
 func _ready() -> void:
@@ -44,6 +59,18 @@ func _ready() -> void:
 	_ambience = _make_player(&"Ambience", AMBIENCE_DB, 1)
 	_ambience.stream = AMBIENCE
 	_ambience.play()
+
+	# The startup title stinger rides the (otherwise unused) BGM bus — it's the
+	# title theme, not gameplay/ambience. One-shot; the menu fires play_intro().
+	_intro = _make_player(&"BGM", INTRO_DB, 1)
+	_intro.stream = INTRO
+
+	# Two looping dread pulses on the Gameplay bus, started silent and faded in/out
+	# by row proximity to the lose line (see set_heartbeat_slow/fast).
+	_hb_slow = _make_player(&"Gameplay", SILENT_DB, 1)
+	_hb_slow.stream = HEARTBEAT_SLOW
+	_hb_fast = _make_player(&"Gameplay", SILENT_DB, 1)
+	_hb_fast.stream = HEARTBEAT_FAST
 
 	_click = _make_player(&"HUD", CLICK_DB, 3)
 	_hover = _make_player(&"HUD", HOVER_DB, 3)
@@ -95,6 +122,60 @@ func play_click() -> void:
 func play_back() -> void:
 	_click.stream = UI_BACK
 	_click.play()
+
+
+# --- startup intro stinger ----------------------------------------------------
+
+## Play the one-shot title stinger that scores the "SPHERES / OF / PAIN" reveal.
+func play_intro() -> void:
+	_intro.play()
+
+
+## Cut the stinger short (the player skipped the intro).
+func stop_intro() -> void:
+	_intro.stop()
+
+
+# --- danger heartbeats --------------------------------------------------------
+
+## Slow pulse: on when the field is exactly two rows from the lose line. Each call
+## fades over HEARTBEAT_FADE; toggling it re-kills the in-flight fade so rapid
+## on/off swings (a clear right after a grow) can't stack competing tweens.
+func set_heartbeat_slow(on: bool) -> void:
+	_hb_slow_tween = _fade_loop(_hb_slow, _hb_slow_tween, on)
+
+
+## Fast pulse: on at one row from losing. Independent of the slow pulse, so the
+## controller's two calls produce the escalation (slow fades out as fast fades in).
+func set_heartbeat_fast(on: bool) -> void:
+	_hb_fast_tween = _fade_loop(_hb_fast, _hb_fast_tween, on)
+
+
+## Hard-stop both pulses with no fade — used when the game screen is torn down.
+func stop_heartbeats() -> void:
+	for p: AudioStreamPlayer in [_hb_slow, _hb_fast]:
+		p.stop()
+		p.volume_db = SILENT_DB
+	if _hb_slow_tween and _hb_slow_tween.is_valid():
+		_hb_slow_tween.kill()
+	if _hb_fast_tween and _hb_fast_tween.is_valid():
+		_hb_fast_tween.kill()
+
+
+## Fade a looping player toward full (on) or silence (off) over HEARTBEAT_FADE,
+## starting playback on the way up and stopping it once fully faded out. Kills any
+## previous fade on the same player first. Returns the new tween to store.
+func _fade_loop(player: AudioStreamPlayer, prev: Tween, on: bool) -> Tween:
+	if prev and prev.is_valid():
+		prev.kill()
+	if on and not player.playing:
+		player.volume_db = SILENT_DB
+		player.play()
+	var tw := create_tween()
+	tw.tween_property(player, "volume_db", HEARTBEAT_DB if on else SILENT_DB, HEARTBEAT_FADE)
+	if not on:
+		tw.tween_callback(player.stop)
+	return tw
 
 
 func _make_player(bus: StringName, db: float, polyphony: int) -> AudioStreamPlayer:

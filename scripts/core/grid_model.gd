@@ -162,3 +162,19 @@ func is_lost() -> bool:
 		if cell.y >= danger_row:
 			return true
 	return false
+
+## The deepest occupied row (largest cell.y), or -1 on an empty board. Counts black
+## (unbreakable) cells too, since they sink toward the lose line like any sphere and
+## is_lost() reckons with them as well.
+func max_row() -> int:
+	var m := -1
+	for cell in cells.keys():
+		if cell.y > m:
+			m = cell.y
+	return m
+
+## Rows of headroom before the field crosses the lose line: danger_row minus the
+## deepest occupied row. 2 -> the slow heartbeat, 1 -> the fast one, <= 0 -> lost.
+## A large value (empty/shallow board) means safe. Drives the danger audio.
+func rows_to_danger() -> int:
+	return danger_row - max_row()

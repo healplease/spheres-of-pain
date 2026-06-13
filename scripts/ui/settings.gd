@@ -189,10 +189,10 @@ func _build_graphics_tab() -> void:
 
 func _build_audio_tab() -> void:
 	_add_slider(tab_audio, "Master", &"master", "Overall volume.")
-	_add_slider(tab_audio, "Music", &"bgm", "Background music (none yet — planned).")
+	_add_slider(tab_audio, "Music", &"bgm", "The title theme.")
 	_add_slider(tab_audio, "Ambience", &"ambience", "The dungeon's breathing drone.")
 	_add_slider(tab_audio, "HUD", &"hud", "Menu clicks and hovers.")
-	_add_slider(tab_audio, "Gameplay", &"gameplay", "Sphere pops.")
+	_add_slider(tab_audio, "Gameplay", &"gameplay", "Sphere pops and the heartbeat of dread.")
 
 
 func _add_slider(tab: VBoxContainer, title: String, channel: StringName, desc: String) -> void:

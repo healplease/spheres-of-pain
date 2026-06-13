@@ -13,6 +13,10 @@ const PLAY_SCENE := "res://scenes/level_3d.tscn"
 var progress := ProgressStore.new()
 var selected_index: int = -1            # -1 = free play (random board)
 var selected_level: LevelResource = null
+## False until the main menu has played its startup intro once. Lives here (not in
+## the menu) because the menu scene is reloaded on every return — this autoload
+## persists, so the title reveal fires only on the very first menu load per run.
+var intro_played: bool = false
 
 
 static func level_path(i: int) -> String:

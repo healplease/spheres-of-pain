@@ -179,3 +179,42 @@ func test_safe_above_danger_row() -> void:
 	var m := _make_model()
 	m.cells = {Vector2i(0, 11): 0}
 	assert_false(m.is_lost())
+
+
+# --- danger proximity (drives the heartbeat audio) ----------------------------
+
+func test_max_row_empty_field() -> void:
+	var m := _make_model()
+	m.cells = {}
+	assert_eq(m.max_row(), -1, "empty field reports no occupied row")
+
+
+func test_max_row_is_deepest_cell() -> void:
+	var m := _make_model()
+	m.cells = {Vector2i(0, 2): 0, Vector2i(3, 7): 1, Vector2i(1, 5): 2}
+	assert_eq(m.max_row(), 7, "deepest occupied row")
+
+
+func test_max_row_counts_black() -> void:
+	var m := _make_model()
+	# A black sphere sits deeper than any breakable; it still defines the deepest row.
+	m.cells = {Vector2i(0, 4): 0, Vector2i(2, 11): GridModel.BLACK}
+	assert_eq(m.max_row(), 11, "black counts toward the deepest row")
+
+
+func test_rows_to_danger_two_rows_out() -> void:
+	var m := _make_model()   # danger_row = 12
+	m.cells = {Vector2i(0, 10): 0}
+	assert_eq(m.rows_to_danger(), 2, "deepest at danger_row - 2 -> slow pulse")
+
+
+func test_rows_to_danger_one_row_out() -> void:
+	var m := _make_model()
+	m.cells = {Vector2i(0, 11): 0}
+	assert_eq(m.rows_to_danger(), 1, "deepest at danger_row - 1 -> fast pulse")
+
+
+func test_rows_to_danger_empty_field_is_safe() -> void:
+	var m := _make_model()
+	m.cells = {}
+	assert_eq(m.rows_to_danger(), 13, "empty field is far from the line (danger_row - (-1))")
