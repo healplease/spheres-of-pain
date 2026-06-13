@@ -141,6 +141,7 @@ func _pop(cell: Vector2i, delay := 0.0) -> void:
 func _play_pop(mi: MeshInstance3D) -> void:
 	if not is_instance_valid(mi):
 		return
+	Sound.play_pop()
 	# Materials are shared across same-colour spheres; duplicate so fading this
 	# one doesn't fade the others.
 	var m := mi.material_override.duplicate() as StandardMaterial3D

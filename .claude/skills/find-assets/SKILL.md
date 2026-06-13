@@ -23,7 +23,7 @@ muted violet/teal/rust palettes. Avoid: heroic orchestral, bright cartoon, sci-f
 | polyhaven.com | Textures, HDRIs, models | CC0 |
 | opengameart.org | Everything | MIXED — check each item (prefer CC0; CC-BY ok with credit) |
 | freesound.org | SFX, ambience | MIXED — filter to CC0; CC-BY ok with credit |
-| pixabay.com | Music, SFX | Pixabay license (free, no attribution) |
+| pixabay.com | Music, SFX | Pixabay license (free, no attribution). **Blocks automated downloads (403)** — shortlist URLs and ask the user to download manually (their downloads keep the `author-title-id` filename, which preserves provenance) |
 | incompetech.com | Music | CC-BY (credit Kevin MacLeod) |
 | itch.io free packs | Art packs | MIXED — read each pack's license page |
 
