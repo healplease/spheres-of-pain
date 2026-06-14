@@ -19,7 +19,7 @@ if ($branch -ne 'master') {
     throw "Releases are cut from 'master' (currently on '$branch')."
 }
 if ((git status --porcelain).Trim().Length -ne 0) {
-    throw "Working tree is dirty - commit or stash before releasing."
+    throw "Working tree is dirty — commit or stash before releasing."
 }
 
 git rev-parse -q --verify "refs/tags/$tag" *> $null
