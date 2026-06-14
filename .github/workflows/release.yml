@@ -76,6 +76,18 @@ jobs:
           test -s "$OUT"   # fail if the .exe is missing or empty
           echo "ASSET=$OUT" >> "$GITHUB_ENV"
 
+      - name: Verify levels load from the exported data
+        run: |
+          set -euo pipefail
+          # Export a PCK with the same preset (identical resource processing to the
+          # .exe's embedded pack) and load every level from it headlessly. Fails the
+          # build if any level is missing or invalid — this gate exists because 0.1.1
+          # shipped with empty level layouts (the .tres -> binary .res conversion on
+          # the Linux runner dropped LevelResource.layout) and nothing caught it.
+          godot --headless --path . --export-pack "$EXPORT_PRESET" build/windows/verify.pck
+          godot --headless --main-pack build/windows/verify.pck -s res://tools/verify_levels.gd
+          rm -f build/windows/verify.pck
+
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
         with:
