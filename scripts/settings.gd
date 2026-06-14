@@ -27,6 +27,11 @@ func apply_all() -> void:
 	apply_audio()
 	apply_text_effects()
 	graphics_changed.emit()   # sync any already-running level's env/aim
+	Log.info(Log.CONFIG, "settings applied", {
+		"shadows": store.get_shadows(),
+		"ssao": store.get_ssao(),
+		"glow": store.get_glow(),
+	})
 
 
 func apply_video() -> void:
@@ -41,6 +46,12 @@ func apply_video() -> void:
 	DisplayServer.window_set_vsync_mode(
 		DisplayServer.VSYNC_ENABLED if store.get_vsync() else DisplayServer.VSYNC_DISABLED)
 	Engine.max_fps = store.get_fps_limit()   # 0 = unlimited
+	Log.debug(Log.CONFIG, "video", {
+		"display_mode": mode,
+		"resolution": win.size,
+		"vsync": store.get_vsync(),
+		"fps_limit": store.get_fps_limit(),
+	})
 
 
 func apply_aa() -> void:
@@ -63,6 +74,7 @@ func apply_aa() -> void:
 		SettingsStore.AA.MSAA_8X:
 			vp.screen_space_aa = Viewport.SCREEN_SPACE_AA_DISABLED
 			vp.msaa_3d = Viewport.MSAA_8X
+	Log.debug(Log.CONFIG, "antialiasing", {"mode": SettingsStore.AA.keys()[store.get_antialiasing()]})
 
 
 func apply_audio() -> void:

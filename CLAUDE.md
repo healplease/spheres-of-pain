@@ -52,11 +52,24 @@ be written under `temp/` (gitignored). Never scatter `_run.log`/`_anim_*.png`-st
 the project root. Clean up when done, but `temp/` keeps stray artifacts out of `git status`
 regardless.
 
+**Observability / logs:** the `Log` autoload (`scripts/log.gd`, first autoload) is the one
+place that formats every diagnostic line — use it (`Log.info(Log.PLAY, "msg", {kv})`,
+`Log.debug/warn/error`) instead of bare `print`. Each call becomes one greppable line:
+`[  12.345] LEVEL CATEG message | key=val …` (uptime seconds, level, 6-char category,
+logfmt kv; values kept space-free). Levels TRACE<DEBUG<INFO<WARN<ERROR; threshold is DEBUG
+in debug builds / INFO in release, override with env `SOP_LOG_LEVEL=trace|debug|…`. WARN/ERROR
+also go through `push_warning`/`push_error` so the MCP runtime/error queries catch them.
+**To read what the game did, open `temp/session.log`** (the prior run is `session-prev.log`;
+exported/web builds write `user://logs/` instead). The instrumented backbone: `FLOW` scene
+nav + level load (GameState), `PLAY` level ready / danger tier / end, `SHOT`/`MODEL`
+fire→land→attach, `CONFIG` applied settings. **Keep the pure core (`scripts/core/`) Log-free**
+— views/controllers/autoloads observe the model and log on its behalf (model/view split).
+
 **Live gameplay verification:** synthetic *mouse* clicks do NOT reach the Godot window
 (keyboard does). To exercise the fire→land→attach pipeline, set env `SOP_AUTOPLAY=1`; the
-controller fires scripted shots and prints `[FIRE]/[LAND]/[DROP]` events (gated behind
-`_debug`). Prefer driving + reading this via the Godot MCP (`mcp__godot__game`); if you must
-shell out, redirect output into `temp/`. A real mouse works in normal play.
+controller fires scripted shots, which surface as `SHOT`/`MODEL` lines in the log (see
+Observability above). Prefer driving + reading this via the Godot MCP (`mcp__godot__game`); if
+you must shell out, redirect output into `temp/`. A real mouse works in normal play.
 
 **Screenshots:** prefer the MCP — `mcp__godot__screenshot` (headless scene `capture`, then
 `analyze`) or `mcp__godot__game` `take_screenshot` for the *running* game (needs

@@ -101,7 +101,6 @@ var _aim2d := Vector2(0, -1)
 var _last_sim: Dictionary = {}
 var game_over := false
 var aim_ray_enabled := false   # trajectory preview hidden by default; [A] toggles
-var _debug := false
 var _shots_fired := 0          # HUD counter; bumped on every shot
 
 # Danger-visual state: the materials we drive, the single tween that fades them,
@@ -196,17 +195,28 @@ func _ready() -> void:
 
 	_update_status()
 	_update_heartbeat()   # an authored level could start already close to the line
+
+	Log.info(Log.PLAY, "level ready", {
+		"mode": "authored" if _level != null else "free",
+		"title": _level.title if _level != null else "THE PIT",
+		"size": "%dx%d" % [columns, rows],
+		"colors": num_colors,
+		"danger_row": danger_row,
+		"colored": model.count_colored(),
+		"true_random": _bag.true_random,
+		"aim": aim_ray_enabled,
+	})
+
 	if _level != null:
 		_show_intro()
 
 	if OS.has_environment("SOP_AUTOPLAY"):
-		_debug = true
 		var t := Timer.new()
 		t.wait_time = 0.6
 		t.timeout.connect(_auto_step)
 		add_child(t)
 		t.start()
-		print("[AUTOPLAY] enabled")
+		Log.info(Log.PLAY, "autoplay enabled")
 
 
 func _process(_delta: float) -> void:
@@ -545,8 +555,13 @@ func _on_fired() -> void:
 	if game_over or not _last_sim.has("path"):
 		return
 	var is_miss: bool = _last_sim.get("miss", false)
-	if _debug:
-		print("[FIRE] color=", shooter.current_color, " -> ", "MISS" if is_miss else _last_sim.cell)
+	Log.debug(Log.SHOT, "fire", {
+		"n": _shots_fired + 1,
+		"color": shooter.current_color,
+		"aim": _aim2d,
+		"result": "miss" if is_miss else "hit",
+		"cell": null if is_miss else _last_sim.cell,
+	})
 	_shots_fired += 1
 	_update_status()   # the shots tally ticks the moment the gun fires
 	shooter.enabled = false
@@ -570,9 +585,15 @@ func _on_fired() -> void:
 
 func _on_landed(cell: Vector2i, color: int) -> void:
 	var res := model.attach(cell, color)
-	if _debug:
-		print("[LAND] cell=", cell, " pop=", res.did_pop, " popped=", res.popped.size(),
-			" orphaned=", res.orphaned.size(), " coloured=", model.count_colored())
+	Log.debug(Log.MODEL, "attach", {
+		"cell": cell,
+		"color": color,
+		"pop": res.did_pop,
+		"popped": res.popped.size(),
+		"orphaned": res.orphaned.size(),
+		"colored": model.count_colored(),
+		"max_row": model.max_row(),
+	})
 	if res.did_pop:
 		# One cluster-sized pop burst, not one sound per sphere — keeps big clears
 		# (the matched group plus any spheres it orphans) from turning to noise.
@@ -597,8 +618,7 @@ func _on_landed(cell: Vector2i, color: int) -> void:
 
 
 func _on_missed() -> void:
-	if _debug:
-		print("[MISS] reshuffle; coloured=", model.count_colored())
+	Log.debug(Log.SHOT, "miss reshuffle", {"colored": model.count_colored()})
 	model.randomize_colors()
 	board.sync()   # reshuffle only recolours; spheres stay, materials swap in place
 	_validate_load()
@@ -649,6 +669,11 @@ func _set_danger(tier: DangerTier) -> void:
 	if tier == _danger:
 		return
 	_danger = tier
+	Log.info(Log.PLAY, "danger tier", {
+		"tier": DangerTier.keys()[tier],
+		"rows_to_danger": model.rows_to_danger(),
+		"max_row": model.max_row(),
+	})
 
 	Sound.set_heartbeat_slow(tier == DangerTier.SLOW)
 	Sound.set_heartbeat_fast(tier == DangerTier.FAST)
@@ -702,6 +727,12 @@ func _check_end() -> void:
 
 func _end(msg: String, won: bool) -> void:
 	game_over = true
+	Log.info(Log.PLAY, "level end", {
+		"won": won,
+		"shots": _shots_fired,
+		"colored": model.count_colored(),
+		"max_row": model.max_row(),
+	})
 	shooter.enabled = false
 	_update_heartbeat()   # game_over now true -> both pulses fade out (cleared or consumed)
 	_preview_mesh.clear_surfaces()
