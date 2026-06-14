@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" fill="none" stroke="#c7b8a6" stroke-width="3" stroke-linejoin="round" stroke-linecap="round">
+  <!-- arched iron door -->
+  <path d="M16 56 V26 a16 16 0 0 1 32 0 V56 Z"/>
+  <!-- inner panel -->
+  <path d="M23 54 V27 a9 9 0 0 1 18 0 V54" stroke-opacity="0.55"/>
+  <!-- ring handle -->
+  <circle cx="40" cy="38" r="3.2"/>
+  <!-- threshold -->
+  <line x1="12" y1="56" x2="52" y2="56"/>
+</svg>

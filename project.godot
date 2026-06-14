@@ -29,6 +29,10 @@ window/size/viewport_height=720
 window/size/mode=3
 window/stretch/mode="canvas_items"
 
+[gui]
+
+theme/custom="res://themes/game_theme.tres"
+
 [editor_plugins]
 
 enabled=PackedStringArray("res://addons/godot_mcp_server/plugin.cfg", "res://addons/gut/plugin.cfg")

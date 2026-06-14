@@ -11,7 +11,9 @@ const S := 1.0 / 56.0          # metres per logical pixel; one cell ≈ 1 m
 const SPHERE_RADIUS := 0.46
 const FRAME_THICK := 0.3       # frame bar cross-section (metres)
 const FRAME_DEPTH := 0.6       # frame bar depth toward the camera (metres)
-const MARGIN_PX := 50.0        # reserved screen margin, top and bottom (design px)
+const MARGIN_TOP := 96.0       # reserved screen margin at the top (design px) — extra
+                               # headroom so the HUD level name clears the field's top border
+const MARGIN_BOTTOM := 50.0    # reserved screen margin at the bottom (design px)
 const FIELD_CENTER_X := 640.0  # logical x the field + muzzle are centred on
 const TOP_Y := 80.0            # logical y of the row-0 sphere centres
 const GROWTH_BUFFER := 9       # empty rows below the fill before the danger line
@@ -23,6 +25,29 @@ const FRAME_SHADER := preload("res://shaders/frame_veins.gdshader")
 # Banner / lore / end-panel fade timings (seconds).
 const FADE_IN_TIME := 0.45
 const FADE_OUT_TIME := 0.7
+# Soft black backdrop behind the centre text: the bar hugs each line's measured
+# text height with this much vertical margin above and below, and fades out exactly
+# over that margin (so the text sits on solid black, symmetric top and bottom). The
+# big title font wants a much taller plate than the small tagline (kept as far as it
+# can go without the title bar reaching down into the tagline's bar during the intro).
+const TEXT_BG_PAD_Y := 16.0        # tagline (small font)
+const TITLE_BG_PAD_Y := 54.0       # title / verdict (large font)
+
+# Danger visuals (bottom-line blink + red injury vignette), driven off the same
+# tier as the heartbeat audio and faded in/out over DANGER_FADE — in lock-step
+# with the pulses. The line/vignette throb at the tier's BPM (rad/s = TAU*bpm/60).
+const DANGER_BPM_SLOW := 67.0     # two rows from the line
+const DANGER_BPM_FAST := 80.0     # one row from the line
+const DANGER_LINE_AMBIENT := 1.7  # the line's resting pulse when safe (shader default)
+const DANGER_FADE := 1.0
+const VIG_SLIGHT := 0.45          # vignette intensity at two rows (rim only)
+const VIG_INTENSE := 1.0          # vignette intensity at one row (heavy injury)
+const VIG_EDGE_FAR := 0.62        # vignette confined to the screen rim
+const VIG_EDGE_NEAR := 0.42       # reaches further in for the one-row injury look
+const BANNER_PALE := Color(0.82, 0.78, 0.72, 1.0)   # intro / win verdict colour
+const BANNER_RED := Color(0.86, 0.13, 0.12, 1.0)    # lose verdict colour
+
+enum DangerTier { NONE, SLOW, FAST }
 
 @export var diameter := 56.0
 @export var num_colors := 5
@@ -41,6 +66,7 @@ var danger_row := 12
 var origin2d := Vector2(346, 80)   # logical board origin (cell 0,0)
 var muzzle2d := Vector2(640, 690)  # logical muzzle
 var _play_bottom := 720.0          # logical miss-exit line (below the muzzle)
+var _view_center := Vector3.ZERO   # camera look target (field centre nudged down for the HUD)
 
 @onready var world_env: WorldEnvironment = $WorldEnvironment
 @onready var light: DirectionalLight3D = $DirectionalLight3D
@@ -50,7 +76,11 @@ var _play_bottom := 720.0          # logical miss-exit line (below the muzzle)
 @onready var board: BoardView3D = $Board
 @onready var shooter: Shooter3D = $Shooter
 @onready var preview: MeshInstance3D = $Preview
-@onready var status_label: Label = $Ui/Status
+@onready var counter_label: Label = $Ui/Counter
+@onready var level_name_label: Label = $Ui/LevelName
+@onready var door_button: Button = $Ui/DoorButton
+@onready var banner_bg: ColorRect = $Ui/BannerBg
+@onready var lore_bg: ColorRect = $Ui/LoreBg
 @onready var banner_label: Label = $Ui/Banner
 @onready var lore_label: Label = $Ui/Lore
 @onready var end_panel: VBoxContainer = $Ui/EndPanel
@@ -72,6 +102,14 @@ var _last_sim: Dictionary = {}
 var game_over := false
 var aim_ray_enabled := false   # trajectory preview hidden by default; [A] toggles
 var _debug := false
+var _shots_fired := 0          # HUD counter; bumped on every shot
+
+# Danger-visual state: the materials we drive, the single tween that fades them,
+# and the current tier (so re-calls at the same tier don't restart the 1 s fade).
+var _danger_line_mat: ShaderMaterial   # the bottom miss-exit bar (danger_line.gdshader)
+var _danger_vig_mat: ShaderMaterial    # the red injury vignette (danger_vignette.gdshader)
+var _danger_tween: Tween
+var _danger := DangerTier.NONE
 
 
 func to3d(p: Vector2) -> Vector3:
@@ -145,6 +183,16 @@ func _ready() -> void:
 	next_button.pressed.connect(GameState.start_next)
 	retry_button.pressed.connect(GameState.retry_level)
 	menu_button.pressed.connect(GameState.go_to_level_select)
+	door_button.pressed.connect(GameState.go_to_level_select)
+
+	# HUD: centre name (an authored title, or "THE PIT" in free play) + the red
+	# vignette material the danger tier drives. Seed every uniform we tween so
+	# get_shader_parameter() returns a real float for the fade's start value.
+	_danger_vig_mat = ($Dread/DangerVignette as ColorRect).material
+	_danger_vig_mat.set_shader_parameter("intensity", 0.0)
+	_danger_vig_mat.set_shader_parameter("edge", VIG_EDGE_FAR)
+	_danger_vig_mat.set_shader_parameter("pulse_speed", DANGER_LINE_AMBIENT)
+	level_name_label.text = _level.title if _level != null else "THE PIT"
 
 	_update_status()
 	_update_heartbeat()   # an authored level could start already close to the line
@@ -290,9 +338,12 @@ func _apply_graphics_settings() -> void:
 
 
 func _place_camera() -> void:
-	# Frame the whole play field (its outer frame) head-on, reserving MARGIN_PX of
-	# screen at the top and bottom. The viewport is the 1280x720 design space
-	# (canvas_items stretch), so the margin is deterministic across resolutions.
+	# Frame the whole play field (its outer frame) head-on, reserving MARGIN_TOP /
+	# MARGIN_BOTTOM of screen. The top reserve is larger so the HUD (level name)
+	# clears the field's top border: the field is centred in the band between them,
+	# which sits below screen centre, so we aim the camera a touch higher to push
+	# the field down into it. The viewport is the 1280x720 design space (canvas_items
+	# stretch), so the margins are deterministic across resolutions.
 	var b := _frame_bounds(FRAME_THICK)   # outer edge of the frame
 	var center := Vector3((b.x + b.y) * 0.5, (b.z + b.w) * 0.5, 0.0)
 	var field_h := absf(b.z - b.w)
@@ -302,21 +353,27 @@ func _place_camera() -> void:
 		return
 	camera.fov = 52.0
 	var tan_half := tan(deg_to_rad(camera.fov) * 0.5)
-	var v_frac: float = maxf(0.2, (vp.y - 2.0 * MARGIN_PX) / vp.y)
+	var v_frac: float = maxf(0.2, (vp.y - (MARGIN_TOP + MARGIN_BOTTOM)) / vp.y)
 	var aspect: float = vp.x / vp.y
 	var d_fit_height := (field_h / v_frac) / (2.0 * tan_half)
 	var d_fit_width := field_w / (2.0 * tan_half * aspect)
 	var d: float = maxf(d_fit_height, d_fit_width)
-	camera.position = center + Vector3(0.0, 0.0, d)
-	camera.look_at(center, Vector3.UP)
+	# Raise the look target by the band's downward shift, converted to world units
+	# at the field plane (the full visible height there maps to vp.y pixels).
+	var world_per_px := (2.0 * d * tan_half) / vp.y
+	var look_shift := (MARGIN_TOP - MARGIN_BOTTOM) * 0.5 * world_per_px
+	_view_center = center + Vector3(0.0, look_shift, 0.0)
+	camera.position = _view_center + Vector3(0.0, 0.0, d)
+	camera.look_at(_view_center, Vector3.UP)
 	_fit_backdrop()
 
 
 ## Size the abyss backdrop quad to cover the camera frustum at its depth (with
-## 15% margin), so no background_color slivers show at any field size.
+## 15% margin), so no background_color slivers show at any field size. Centred on
+## the camera's view axis (_view_center), not the field, so the look-target nudge
+## can't reveal a sliver of background_color at the top.
 func _fit_backdrop() -> void:
-	var b := _frame_bounds(FRAME_THICK)
-	backdrop.position = Vector3((b.x + b.y) * 0.5, (b.z + b.w) * 0.5, -BACKDROP_OFFSET)
+	backdrop.position = Vector3(_view_center.x, _view_center.y, -BACKDROP_OFFSET)
 	var dist := camera.position.z + BACKDROP_OFFSET
 	var vp := get_viewport().get_visible_rect().size
 	if vp.y <= 0.0:
@@ -390,6 +447,8 @@ func _build_frame() -> void:
 
 	var exit_mat := ShaderMaterial.new()
 	exit_mat.shader = DANGER_SHADER
+	exit_mat.set_shader_parameter("pulse_speed", DANGER_LINE_AMBIENT)   # seeded so the tween has a start value
+	_danger_line_mat = exit_mat   # the danger tier drives its pulse_speed (blink rate)
 
 	var frame := Node3D.new()
 	frame.name = "Frame"
@@ -420,9 +479,10 @@ func _exit_tree() -> void:
 
 
 func _input(event: InputEvent) -> void:
-	# Fullscreen has no window chrome — give the player a way back.
+	# Fullscreen has no window chrome — Esc leaves to level select (same as the
+	# HUD door button), so the two exits behave identically.
 	if event.is_action_pressed("ui_cancel"):
-		GameState.go_to_main_menu()
+		GameState.go_to_level_select()
 	elif event.is_action_pressed("toggle_aim"):
 		aim_ray_enabled = not aim_ray_enabled
 		preview.visible = aim_ray_enabled and not game_over
@@ -487,6 +547,8 @@ func _on_fired() -> void:
 	var is_miss: bool = _last_sim.get("miss", false)
 	if _debug:
 		print("[FIRE] color=", shooter.current_color, " -> ", "MISS" if is_miss else _last_sim.cell)
+	_shots_fired += 1
+	_update_status()   # the shots tally ticks the moment the gun fires
 	shooter.enabled = false
 	var proj := Projectile3D.new()
 	proj.setup(_mesh, _mat_for(shooter.current_color))
@@ -565,18 +627,68 @@ func _validate_load() -> void:
 
 # --- danger heartbeat ---------------------------------------------------------
 
-## Map how close the field is to the lose line onto the two dread pulses. Slow at
-## exactly two rows, fast at one (escalation: the two independent toggles let the
-## slow one fade out as the fast fades in). Anything else — safe, won, or lost —
-## silences both. Called after every shot resolves and when the game ends.
+## Map how close the field is to the lose line onto a danger tier, then route it to
+## BOTH the audio (the two heartbeats) and the visuals (the bottom-line blink rate
+## and the red injury vignette) so they stay locked together. SLOW at exactly two
+## rows, FAST at one; anything else — safe, won, or lost (game_over) — is NONE.
+## Called after every shot resolves and when the game ends.
 func _update_heartbeat() -> void:
-	if game_over:
-		Sound.set_heartbeat_slow(false)
-		Sound.set_heartbeat_fast(false)
+	var tier := DangerTier.NONE
+	if not game_over:
+		match model.rows_to_danger():
+			2: tier = DangerTier.SLOW
+			1: tier = DangerTier.FAST
+	_set_danger(tier)
+
+
+## Apply a danger tier. No-op if unchanged, so the per-shot re-calls don't restart
+## the 1 s fade. Audio toggles stay independent (escalation: the slow heartbeat
+## fades out as the fast fades in). The visuals fade over DANGER_FADE on a single
+## tween, killed and rebuilt on each change so a 2->1 escalation transitions cleanly.
+func _set_danger(tier: DangerTier) -> void:
+	if tier == _danger:
 		return
-	var d := model.rows_to_danger()
-	Sound.set_heartbeat_slow(d == 2)
-	Sound.set_heartbeat_fast(d == 1)
+	_danger = tier
+
+	Sound.set_heartbeat_slow(tier == DangerTier.SLOW)
+	Sound.set_heartbeat_fast(tier == DangerTier.FAST)
+
+	# Per-tier targets: the vignette's intensity/reach, and the shared blink speed
+	# (the bottom line and the vignette throb at the same BPM).
+	var vig_intensity := 0.0
+	var vig_edge := VIG_EDGE_FAR
+	var line_speed := DANGER_LINE_AMBIENT
+	match tier:
+		DangerTier.SLOW:
+			vig_intensity = VIG_SLIGHT
+			line_speed = _bpm_to_speed(DANGER_BPM_SLOW)
+		DangerTier.FAST:
+			vig_intensity = VIG_INTENSE
+			vig_edge = VIG_EDGE_NEAR
+			line_speed = _bpm_to_speed(DANGER_BPM_FAST)
+
+	if _danger_tween and _danger_tween.is_valid():
+		_danger_tween.kill()
+	var tw := create_tween().set_parallel(true)
+	_tween_param(tw, _danger_vig_mat, "intensity", vig_intensity)
+	_tween_param(tw, _danger_vig_mat, "edge", vig_edge)
+	_tween_param(tw, _danger_vig_mat, "pulse_speed", line_speed)
+	_tween_param(tw, _danger_line_mat, "pulse_speed", line_speed)
+	_danger_tween = tw
+
+
+## Tween one float shader uniform from its current value to `to` over DANGER_FADE,
+## as a parallel leg of `tw`. The uniform must already be seeded (see _ready /
+## _build_frame) so the start value reads back as a float.
+func _tween_param(tw: Tween, mat: ShaderMaterial, param: String, to: float) -> void:
+	var from: float = mat.get_shader_parameter(param)
+	tw.tween_method(
+		func(v: float) -> void: mat.set_shader_parameter(param, v),
+		from, to, DANGER_FADE)
+
+
+static func _bpm_to_speed(bpm: float) -> float:
+	return TAU * bpm / 60.0
 
 
 # --- end state ----------------------------------------------------------------
@@ -594,10 +706,20 @@ func _end(msg: String, won: bool) -> void:
 	_update_heartbeat()   # game_over now true -> both pulses fade out (cleared or consumed)
 	_preview_mesh.clear_surfaces()
 	banner_label.text = msg
+	# The verdict reads against the board on its own soft black bar (no tagline now);
+	# the lose verdict turns red ("THE SPHERES CONSUME YOU"), the win stays pale.
+	banner_label.add_theme_color_override("font_color", BANNER_PALE if won else BANNER_RED)
+	_size_text_backdrop(banner_bg, banner_label, TITLE_BG_PAD_Y)
+	_fade_in(banner_bg, FADE_IN_TIME)
 	_fade_in(banner_label, FADE_IN_TIME)
 	_kill_fade(lore_label)
 	lore_label.visible = false
 	lore_label.modulate.a = 1.0
+	# The tagline (and its bar) belong to the intro only — make sure neither lingers
+	# if the game ended mid-intro.
+	_kill_fade(lore_bg)
+	lore_bg.visible = false
+	lore_bg.modulate.a = 1.0
 	if won and _level != null:
 		GameState.complete_current()
 	next_button.visible = won and _level != null and GameState.has_next()
@@ -617,13 +739,22 @@ func _end(msg: String, won: bool) -> void:
 ## then dissolve (unless the game somehow ended first — the end banner wins).
 func _show_intro() -> void:
 	banner_label.text = _level.title
+	banner_label.add_theme_color_override("font_color", BANNER_PALE)
 	lore_label.text = _level.lore_fragment
+	# A separate soft bar hugs each line (title and tagline), centred on its own text;
+	# the title gets a taller plate to match its bigger font.
+	_size_text_backdrop(banner_bg, banner_label, TITLE_BG_PAD_Y)
+	_size_text_backdrop(lore_bg, lore_label, TEXT_BG_PAD_Y)
+	_fade_in(banner_bg, FADE_IN_TIME)
 	_fade_in(banner_label, FADE_IN_TIME)
+	_fade_in(lore_bg, FADE_IN_TIME, 0.25)
 	_fade_in(lore_label, FADE_IN_TIME, 0.25)
 	await get_tree().create_timer(3.0).timeout
 	if not is_inside_tree() or game_over:
 		return
+	_fade_out(banner_bg, FADE_OUT_TIME)
 	_fade_out(banner_label, FADE_OUT_TIME)
+	_fade_out(lore_bg, FADE_OUT_TIME)
 	_fade_out(lore_label, FADE_OUT_TIME)
 
 
@@ -661,11 +792,34 @@ func _kill_fade(ctrl: CanvasItem) -> void:
 			tw.kill()
 
 
+## Fit a full-width soft backdrop to one centre-text label: centre it on the label's
+## (centred) text and size it to the measured text height plus `pad_y` above and below,
+## then fade the bar out over exactly that pad so the text rests on solid black with an
+## equal margin top and bottom. Call after setting the label's text.
+func _size_text_backdrop(bg: ColorRect, label: Label, pad_y: float) -> void:
+	var font := label.get_theme_font("font")
+	if font == null:
+		return
+	var fsize := label.get_theme_font_size("font")
+	var ts := font.get_multiline_string_size(label.text, HORIZONTAL_ALIGNMENT_CENTER, -1.0, fsize)
+	# get_multiline_string_size ignores the Label's extra inter-line spacing; add it.
+	var lines := label.text.count("\n") + 1
+	if lines > 1:
+		ts.y += float(lines - 1) * float(label.get_theme_constant("line_spacing"))
+	var center_y := label.offset_top + (label.offset_bottom - label.offset_top) * 0.5
+	var h := ts.y + pad_y * 2.0
+	bg.offset_top = center_y - h * 0.5
+	bg.offset_bottom = center_y + h * 0.5
+	var mat := bg.material as ShaderMaterial
+	if mat != null:
+		mat.set_shader_parameter("soft_y", pad_y / h)   # fade out over the pad only
+
+
+## The top-left HUD counter: coloured spheres still on the field (the clear target)
+## and a running tally of shots fired. The level name and exits live in their own
+## HUD nodes; the old one-line hint string is gone.
 func _update_status() -> void:
-	var prefix := ""
-	if _level != null:
-		prefix = "L%d  %s  —  " % [_level.id, _level.title]
-	status_label.text = prefix + "Coloured spheres: %d     [LMB] fire   [A] aim ray  —  match 3+ to clear, miss out the bottom to reshuffle" % model.count_colored()
+	counter_label.text = "Spheres  %d\nShots  %d" % [model.count_colored(), _shots_fired]
 
 
 # --- dev autoplay -------------------------------------------------------------
