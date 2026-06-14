@@ -1,0 +1,115 @@
+name: Deploy Web (GitHub Pages)
+
+# Publishes a playable WebAssembly build of the game to GitHub Pages on every
+# release tag (same v* trigger as release.yml). The Windows release job in
+# release.yml is independent and untouched — this runs alongside it.
+#
+# One-time setup in the repo: Settings -> Pages -> Build and deployment ->
+# Source -> "GitHub Actions". The first successful run publishes to
+#   https://healplease.github.io/spheres-of-pain/
+#
+# Web exports use the Compatibility renderer (WebGL2) — the only renderer Godot
+# supports on the web — selected via rendering/renderer/rendering_method.web in
+# project.godot. The preset is built threads-off (variant/thread_support=false)
+# so the WASM does not need SharedArrayBuffer and therefore does not require the
+# Cross-Origin-Opener-Policy / Cross-Origin-Embedder-Policy headers that GitHub
+# Pages cannot send.
+on:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch: {}   # allow a manual redeploy from the Actions tab
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+# One deployment at a time; a newer tag supersedes an in-flight one.
+concurrency:
+  group: "pages"
+  cancel-in-progress: true
+
+env:
+  GODOT_VERSION: "4.6.3"
+  EXPORT_PRESET: "Web"
+
+jobs:
+  build-web:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Derive version from tag
+        id: ver
+        run: |
+          VERSION="${GITHUB_REF_NAME#v}"          # v1.2.3 -> 1.2.3 (blank for manual runs)
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "Building web for version '${VERSION:-dev}'"
+
+      - name: Install Godot ${{ env.GODOT_VERSION }} + export templates
+        run: |
+          set -euo pipefail
+          BASE="https://github.com/godotengine/godot-builds/releases/download/${GODOT_VERSION}-stable"
+          curl -fL -o godot.zip      "$BASE/Godot_v${GODOT_VERSION}-stable_linux.x86_64.zip"
+          curl -fL -o templates.tpz  "$BASE/Godot_v${GODOT_VERSION}-stable_export_templates.tpz"
+          unzip -q godot.zip
+          mkdir -p "$HOME/bin"
+          mv "Godot_v${GODOT_VERSION}-stable_linux.x86_64" "$HOME/bin/godot"
+          chmod +x "$HOME/bin/godot"
+          echo "$HOME/bin" >> "$GITHUB_PATH"
+          # Templates must land in <data>/godot/export_templates/<version>.stable/
+          TPL_DIR="$HOME/.local/share/godot/export_templates/${GODOT_VERSION}.stable"
+          mkdir -p "$TPL_DIR"
+          unzip -q templates.tpz
+          mv templates/* "$TPL_DIR/"
+
+      - name: Stamp version & strip dev-only addons
+        run: |
+          set -euo pipefail
+          # Stamp the tag (if any) into the project so the running game shows it.
+          if [ -n "${{ steps.ver.outputs.version }}" ]; then
+            sed -i -E "s|^config/version=.*|config/version=\"${{ steps.ver.outputs.version }}\"|" project.godot
+          fi
+          # Editor plugins (GUT, MCP server) live under the gitignored addons/ and
+          # are not in CI — disable them so the headless export doesn't error on them.
+          sed -i -E "s|^enabled=PackedStringArray\(.*\)|enabled=PackedStringArray()|" project.godot
+          # Tests depend on the GUT addon (GutTest) and must not ship.
+          rm -rf tests
+
+      - name: Import resources
+        run: godot --headless --path . --import || true
+
+      - name: Export Web build
+        run: |
+          set -euo pipefail
+          mkdir -p build/web
+          godot --headless --path . --export-release "$EXPORT_PRESET" "$PWD/build/web/index.html"
+          ls -la build/web
+          test -s build/web/index.html   # fail if the entry page is missing or empty
+          test -s build/web/index.wasm   # fail if the engine binary is missing
+          test -s build/web/index.pck    # fail if the game data pack is missing
+
+      - name: Verify levels load from the exported web data
+        run: |
+          set -euo pipefail
+          # Load every level from the REAL exported pack and fail on any invalid one
+          # (same gate as release.yml — guards against export-time resource corruption).
+          godot --headless --main-pack build/web/index.pck -s res://tools/verify_levels.gd
+
+      - name: Upload Pages artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: build/web
+
+  deploy:
+    needs: build-web
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4
