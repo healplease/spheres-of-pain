@@ -29,6 +29,7 @@ const UI_FADE := 0.6       # tagline + buttons rising in
 @onready var overlay: ColorRect = $Overlay
 @onready var intro_overlay: Control = $IntroOverlay
 @onready var word_group: HBoxContainer = $IntroOverlay/WordGroup
+@onready var version_label: Label = $Version
 
 var _intro_running := false
 var _intro_tween: Tween
@@ -36,6 +37,9 @@ var _intro_faded: Array[CanvasItem] = []
 
 
 func _ready() -> void:
+	# Build stamp — CI rewrites application/config/version from the git tag at export;
+	# locally it stays the "0.0.0-dev" placeholder from project.godot.
+	version_label.text = "v" + str(ProjectSettings.get_setting("application/config/version", "dev"))
 	if GameState.intro_played:
 		# Already seen this run — show the menu as-is and drop the reveal scaffolding.
 		intro_overlay.queue_free()
