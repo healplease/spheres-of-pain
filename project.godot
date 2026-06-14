@@ -78,7 +78,3 @@ text_glitch={
 "type": "float",
 "value": 1.0
 }
-text_aberration={
-"type": "float",
-"value": 1.0
-}

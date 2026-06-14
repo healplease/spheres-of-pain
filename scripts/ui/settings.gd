@@ -80,6 +80,17 @@ func _make_check(pressed: bool, on_toggled: Callable) -> CheckButton:
 # --- Gameplay ---------------------------------------------------------------
 
 func _build_gameplay_tab() -> void:
+	# Shooting controls — id == the SettingsStore.ControlScheme value. Seed from the
+	# resolved read-through (not store.get_*) so an unset value shows the platform default.
+	var ctrl := OptionButton.new()
+	ctrl.add_item("Click to shoot", SettingsStore.ControlScheme.CLICK)
+	ctrl.add_item("Hold to aim, release to shoot", SettingsStore.ControlScheme.HOLD)
+	ctrl.select(ctrl.get_item_index(Settings.control_scheme()))
+	ctrl.item_selected.connect(func(i: int) -> void:
+		Settings.set_control_scheme(ctrl.get_item_id(i)))
+	_add_row(tab_gameplay, "Shooting controls", ctrl,
+		"Click: tap to fire instantly. Hold: press to aim, release to shoot — better for touch and precise shots. In Hold, the aim beam shows only while you hold.")
+
 	var aim := _make_check(Settings.aim_enabled(), Settings.set_aim_enabled)
 	_add_row(tab_gameplay, "Enable aim", aim,
 		"Show the trajectory beam that helps you aim the bubble shot. Toggle it in-game with [A].")
@@ -178,11 +189,6 @@ func _build_graphics_tab() -> void:
 	var tglitch := _make_check(Settings.text_glitch(), Settings.set_text_glitch)
 	_add_row(tab_graphics, "Text glitch", tglitch,
 		"Titles occasionally shudder and jitter. Turn off to keep all on-screen text perfectly still.")
-
-	# Text aberration — the title chromatic-aberration flicker.
-	var taber := _make_check(Settings.text_aberration(), Settings.set_text_aberration)
-	_add_row(tab_graphics, "Text aberration", taber,
-		"Titles briefly split into red/blue fringes. Turn off if rapid colour shifts bother you.")
 
 
 # --- Audio ------------------------------------------------------------------

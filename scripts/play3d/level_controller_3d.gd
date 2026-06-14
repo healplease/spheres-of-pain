@@ -18,6 +18,12 @@ const FIELD_CENTER_X := 640.0  # logical x the field + muzzle are centred on
 const TOP_Y := 80.0            # logical y of the row-0 sphere centres
 const GROWTH_BUFFER := 9       # empty rows below the fill before the danger line
 const BACKDROP_OFFSET := 12.0  # metres the abyss backdrop sits behind the board plane
+# Vertical stack below the danger (lose) line, in row-steps: the gun sits this far
+# below the line, then the red miss-exit bar sits this far below the gun. A smaller
+# MUZZLE_GAP lifts the whole gun+bar unit toward the field, so they sit closer to
+# the spheres at the moment those reach the line and consume them.
+const MUZZLE_GAP_ROWS := 0.3   # gun below the danger line (was 0.6 — hand-tuned 690)
+const EXIT_GAP_ROWS := 0.6     # red miss-exit bar below the gun
 
 const DANGER_SHADER := preload("res://shaders/danger_line.gdshader")
 const FRAME_SHADER := preload("res://shaders/frame_veins.gdshader")
@@ -101,6 +107,10 @@ var _aim2d := Vector2(0, -1)
 var _last_sim: Dictionary = {}
 var game_over := false
 var aim_ray_enabled := false   # trajectory preview hidden by default; [A] toggles
+# Whether the ray should currently show, before the aim_ray_enabled / game_over gates.
+# Always true in Click (ray shown whenever enabled); in Hold it's true only while the
+# fire button is held, so the ray appears only during an aim. Seeded in _ready().
+var _aim_active := true
 var _shots_fired := 0          # HUD counter; bumped on every shot
 
 # Danger-visual state: the materials we drive, the single tween that fades them,
@@ -109,6 +119,11 @@ var _danger_line_mat: ShaderMaterial   # the bottom miss-exit bar (danger_line.g
 var _danger_vig_mat: ShaderMaterial    # the red injury vignette (danger_vignette.gdshader)
 var _danger_tween: Tween
 var _danger := DangerTier.NONE
+# Beat phase (radians) and the current blink rate (rad/s), integrated each frame
+# and pushed to both danger shaders. Accumulating phase on the CPU keeps the throb
+# continuous while the rate is tweened — see _advance_danger_pulse / _set_danger.
+var _danger_phase := 0.0
+var _danger_speed := DANGER_LINE_AMBIENT
 
 
 func to3d(p: Vector2) -> Vector3:
@@ -166,11 +181,17 @@ func _ready() -> void:
 	shooter.next_color = _rand_color()
 	shooter.setup(_mesh, _mats, SPHERE_RADIUS)
 	shooter.fired.connect(_on_fired)
+	# Control scheme is read once at build, like true_random (settings aren't reachable
+	# mid-level). Hold: press aims, release fires, ray shows only while held. Click: fires
+	# on press, ray always on (when enabled).
+	shooter.hold_to_fire = Settings.control_scheme() == SettingsStore.ControlScheme.HOLD
+	shooter.aim_active_changed.connect(_on_aim_active_changed)
 
 	preview.mesh = _preview_mesh
 	preview.material_override = _preview_mat
 	aim_ray_enabled = Settings.aim_enabled()   # seed from the Gameplay setting; [A] still toggles in-session
-	preview.visible = aim_ray_enabled
+	_aim_active = not shooter.hold_to_fire     # always-on in Click; off until a press in Hold
+	_update_preview_visibility()
 
 	_build_frame()
 	_place_camera()
@@ -190,7 +211,6 @@ func _ready() -> void:
 	_danger_vig_mat = ($Dread/DangerVignette as ColorRect).material
 	_danger_vig_mat.set_shader_parameter("intensity", 0.0)
 	_danger_vig_mat.set_shader_parameter("edge", VIG_EDGE_FAR)
-	_danger_vig_mat.set_shader_parameter("pulse_speed", DANGER_LINE_AMBIENT)
 	level_name_label.text = _level.title if _level != null else "THE PIT"
 
 	_update_status()
@@ -205,6 +225,7 @@ func _ready() -> void:
 		"colored": model.count_colored(),
 		"true_random": _bag.true_random,
 		"aim": aim_ray_enabled,
+		"hold": shooter.hold_to_fire,
 	})
 
 	if _level != null:
@@ -219,12 +240,14 @@ func _ready() -> void:
 		Log.info(Log.PLAY, "autoplay enabled")
 
 
-func _process(_delta: float) -> void:
+func _process(delta: float) -> void:
+	_advance_danger_pulse(delta)   # keeps throbbing through game-over fade-out too
 	if game_over:
 		return
 	_update_aim()
-	_last_sim = sim.simulate(muzzle2d, _aim2d)
-	_update_preview(_last_sim.path)
+	_last_sim = sim.simulate(muzzle2d, _aim2d)   # keep current for _on_fired even if the ray is hidden
+	if preview.visible:                          # in Hold the ray is hidden most of the time — skip the rebuild
+		_update_preview(_last_sim.path)
 
 
 # --- aim / preview ------------------------------------------------------------
@@ -258,6 +281,21 @@ func _update_preview(path2d: PackedVector2Array) -> void:
 	for p in path2d:
 		_preview_mesh.surface_add_vertex(to3d(p) + Vector3(0, 0, 0.05))  # nudge toward camera
 	_preview_mesh.surface_end()
+
+
+## The single source of truth for the aim ray's visibility: the master "Enable aim"
+## setting, AND whether an aim is currently active (always in Click, only while held in
+## Hold), AND that the level is still live. Every place that changes any of these calls
+## this, so the ray can never get stuck on or hidden.
+func _update_preview_visibility() -> void:
+	preview.visible = aim_ray_enabled and _aim_active and not game_over
+
+
+## Hold scheme: the fire button went down (active) or up (inactive). Drives the ray so
+## it appears only for the duration of the aim. Not emitted in Click mode.
+func _on_aim_active_changed(active: bool) -> void:
+	_aim_active = active
+	_update_preview_visibility()
 
 
 # --- setup helpers ------------------------------------------------------------
@@ -457,8 +495,7 @@ func _build_frame() -> void:
 
 	var exit_mat := ShaderMaterial.new()
 	exit_mat.shader = DANGER_SHADER
-	exit_mat.set_shader_parameter("pulse_speed", DANGER_LINE_AMBIENT)   # seeded so the tween has a start value
-	_danger_line_mat = exit_mat   # the danger tier drives its pulse_speed (blink rate)
+	_danger_line_mat = exit_mat   # _advance_danger_pulse drives its `phase` (blink rate)
 
 	var frame := Node3D.new()
 	frame.name = "Frame"
@@ -495,7 +532,7 @@ func _input(event: InputEvent) -> void:
 		GameState.go_to_level_select()
 	elif event.is_action_pressed("toggle_aim"):
 		aim_ray_enabled = not aim_ray_enabled
-		preview.visible = aim_ray_enabled and not game_over
+		_update_preview_visibility()   # in Hold mode, still only shows while the button is held
 
 
 ## Roll a random field size within the configured ranges and derive every logical
@@ -512,17 +549,16 @@ func _pick_field_dimensions() -> void:
 
 ## Derive every logical coordinate from `columns` / `danger_row` (set either by
 ## the random roll above or by an authored level): the board origin (field
-## centred on FIELD_CENTER_X), the muzzle just below the danger line, and the
-## bottom miss-exit line (≈0.6 of a row each, matching the original hand-tuned
-## 12 / 690 / 720 layout).
+## centred on FIELD_CENTER_X), the muzzle MUZZLE_GAP_ROWS below the danger line,
+## and the bottom miss-exit line EXIT_GAP_ROWS below the muzzle.
 func _layout_field() -> void:
 	var row_step := diameter * Hex.ROW_RATIO
 	# Centre the field horizontally: with this origin, (play_left + play_right) / 2
 	# lands on FIELD_CENTER_X regardless of column count.
 	origin2d = Vector2(FIELD_CENTER_X - diameter * (columns * 0.5 - 0.25), TOP_Y)
 	var danger_y := origin2d.y + danger_row * row_step
-	muzzle2d = Vector2(FIELD_CENTER_X, danger_y + row_step * 0.6)
-	_play_bottom = muzzle2d.y + row_step * 0.6
+	muzzle2d = Vector2(FIELD_CENTER_X, danger_y + row_step * MUZZLE_GAP_ROWS)
+	_play_bottom = muzzle2d.y + row_step * EXIT_GAP_ROWS
 
 
 ## Procedurally fill the field: every cell in the first `rows` rows takes a random
@@ -551,9 +587,17 @@ func _mat_for(color: int) -> Material:
 
 # --- shot results -------------------------------------------------------------
 
-func _on_fired() -> void:
+## `reaim` recomputes the aim against the live pointer at the instant of firing. The
+## `fired` signal carries no args, so a real shot uses the default (true): in Hold a fast
+## press+release can land between _process frames, leaving _aim2d stale; in Click _process
+## already aimed this frame, so it's a no-op. Autoplay passes false — it sets its own
+## canned _aim2d and must not have it clobbered by the (absent) mouse.
+func _on_fired(reaim := true) -> void:
 	if game_over or not _last_sim.has("path"):
 		return
+	if reaim:
+		_update_aim()
+		_last_sim = sim.simulate(muzzle2d, _aim2d)
 	var is_miss: bool = _last_sim.get("miss", false)
 	Log.debug(Log.SHOT, "fire", {
 		"n": _shots_fired + 1,
@@ -697,9 +741,22 @@ func _set_danger(tier: DangerTier) -> void:
 	var tw := create_tween().set_parallel(true)
 	_tween_param(tw, _danger_vig_mat, "intensity", vig_intensity)
 	_tween_param(tw, _danger_vig_mat, "edge", vig_edge)
-	_tween_param(tw, _danger_vig_mat, "pulse_speed", line_speed)
-	_tween_param(tw, _danger_line_mat, "pulse_speed", line_speed)
+	# Ramp the blink *rate*; _advance_danger_pulse integrates it into a continuous
+	# phase, so the line/vignette never spike as the BPM changes (the old bug was
+	# tweening sin(TIME * speed) directly — the big TIME amplified the rate change).
+	tw.tween_property(self, "_danger_speed", line_speed, DANGER_FADE)
 	_danger_tween = tw
+
+
+## Advance the shared heartbeat phase and push it to both danger shaders. Runs every
+## frame (including through the game-over fade) so the throb stays smooth no matter
+## how _danger_speed is being tweened. fmod keeps the phase small for float precision.
+func _advance_danger_pulse(delta: float) -> void:
+	_danger_phase = fmod(_danger_phase + _danger_speed * delta, TAU)
+	if _danger_line_mat:
+		_danger_line_mat.set_shader_parameter("phase", _danger_phase)
+	if _danger_vig_mat:
+		_danger_vig_mat.set_shader_parameter("phase", _danger_phase)
 
 
 ## Tween one float shader uniform from its current value to `to` over DANGER_FADE,
@@ -736,6 +793,7 @@ func _end(msg: String, won: bool) -> void:
 	shooter.enabled = false
 	_update_heartbeat()   # game_over now true -> both pulses fade out (cleared or consumed)
 	_preview_mesh.clear_surfaces()
+	_update_preview_visibility()   # hide the ray at once, even if a finger is still down (Hold)
 	banner_label.text = msg
 	# The verdict reads against the board on its own soft black bar (no tagline now);
 	# the lose verdict turns red ("THE SPHERES CONSUME YOU"), the win stays pale.
@@ -861,4 +919,4 @@ func _auto_step() -> void:
 	var dirs := [Vector2(0, -1), Vector2(0.45, -1).normalized(), Vector2(-0.5, -1).normalized()]
 	_aim2d = dirs[randi() % dirs.size()]
 	_last_sim = sim.simulate(muzzle2d, _aim2d)
-	_on_fired()
+	_on_fired(false)   # keep the canned direction; don't re-aim to the (absent) mouse

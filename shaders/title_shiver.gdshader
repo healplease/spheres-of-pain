@@ -14,10 +14,10 @@ uniform float ab_len = 0.55;        // how long a flicker lasts
 uniform float ab_strength = 2.5;    // peak channel separation, pixels
 uniform float seed = 0.0;           // per-label phase offset
 
-// Accessibility kill-switches, driven by the Graphics settings via RenderingServer
-// global params (so one toggle reaches every title in every scene). 1 = on, 0 = off.
+// Accessibility kill-switch, driven by the Graphics settings via a RenderingServer
+// global param (so one toggle reaches every title in every scene). 1 = on, 0 = off.
+// The chromatic-aberration flicker is always on (no toggle).
 global uniform float text_glitch;       // the positional shiver (glitched movement)
-global uniform float text_aberration;   // the chromatic-aberration flicker (colour tear)
 
 float hash(float n) {
 	return fract(sin(n * 127.1) * 43758.5453);
@@ -45,7 +45,7 @@ void vertex() {
 }
 
 void fragment() {
-	float env = window_env(TIME + seed * 1.7, ab_interval, ab_len, seed + 13.0) * text_aberration;
+	float env = window_env(TIME + seed * 1.7, ab_interval, ab_len, seed + 13.0);
 	if (env > 0.001) {
 		// Stutter inside the flicker so the split feels electrical, not smooth.
 		env *= 0.55 + 0.45 * hash(floor(TIME * 24.0) + seed);

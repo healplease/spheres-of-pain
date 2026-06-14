@@ -88,12 +88,11 @@ func apply_graphics() -> void:
 	graphics_changed.emit()
 
 
-## The title-text shaders read these as global shader params, so setting them once on
+## The title-text shader reads this as a global shader param, so setting it once on
 ## the RenderingServer reaches every title in every scene at once (no per-node wiring,
 ## and the autoload never touches a level's nodes). 1 = effect on, 0 = off.
 func apply_text_effects() -> void:
 	RenderingServer.global_shader_parameter_set(&"text_glitch", 1.0 if store.get_text_glitch() else 0.0)
-	RenderingServer.global_shader_parameter_set(&"text_aberration", 1.0 if store.get_text_aberration() else 0.0)
 
 
 # --- setters the Settings UI calls (mutate store -> auto-save -> apply) -------
@@ -104,6 +103,9 @@ func set_aim_enabled(v: bool) -> void:
 
 func set_true_random(v: bool) -> void:
 	store.set_true_random(v)   # read by the next level at build; settings aren't reachable mid-level
+
+func set_control_scheme(v: int) -> void:
+	store.set_control_scheme(v)   # read by the next level at build; settings aren't reachable mid-level
 
 func set_resolution(v: Vector2i) -> void:
 	store.set_resolution(v)
@@ -141,10 +143,6 @@ func set_text_glitch(v: bool) -> void:
 	store.set_text_glitch(v)
 	apply_text_effects()
 
-func set_text_aberration(v: bool) -> void:
-	store.set_text_aberration(v)
-	apply_text_effects()
-
 func set_volume(channel: StringName, v: float) -> void:
 	store.set_volume(channel, v)
 	apply_audio()
@@ -158,6 +156,21 @@ func aim_enabled() -> bool:
 func true_random() -> bool:
 	return store.get_true_random()
 
+
+## The shooting control scheme. When the player has never chosen one, resolve a
+## platform-aware default here (the store stays engine-free): HOLD on native mobile
+## apps and on phones playing the web build, CLICK everywhere else. This is computed
+## fresh each read rather than persisted, so the same user:// profile picks the right
+## default if it's opened on a different device class.
+func control_scheme() -> int:
+	if store.has_control_scheme():
+		return store.get_control_scheme()
+	return SettingsStore.ControlScheme.HOLD if _default_is_hold() else SettingsStore.ControlScheme.CLICK
+
+
+func _default_is_hold() -> bool:
+	return OS.has_feature("mobile") or (OS.has_feature("web") and DisplayServer.is_touchscreen_available())
+
 func glow_enabled() -> bool:
 	return store.get_glow()
 
@@ -169,9 +182,6 @@ func shadows() -> int:
 
 func text_glitch() -> bool:
 	return store.get_text_glitch()
-
-func text_aberration() -> bool:
-	return store.get_text_aberration()
 
 
 ## Resolution candidates that fit the current monitor, plus the saved choice,

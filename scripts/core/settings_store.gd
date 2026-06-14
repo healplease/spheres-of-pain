@@ -17,6 +17,9 @@ const SECTION_AUDIO := "audio"
 enum AA { OFF, FXAA, MSAA_2X, MSAA_4X, MSAA_8X }
 ## Directional-light shadow quality, stored as the enum's int value.
 enum Shadows { OFF, LOW, HIGH }
+## Shooting control scheme, stored as the enum's int value. CLICK fires on press
+## (point-and-click); HOLD begins aiming on press and fires on release (touch/precision).
+enum ControlScheme { CLICK, HOLD }
 
 ## FPS-limit choices the Video tab offers; 0 means Unlimited.
 const FPS_CHOICES: Array[int] = [60, 75, 100, 120, 144, 240, 0]
@@ -39,6 +42,7 @@ const VOLUME_CHANNELS: Array[StringName] = [&"master", &"bgm", &"ambience", &"hu
 # Defaults in one place — referenced by the getters and asserted by the test suite.
 const DEF_AIM := false
 const DEF_TRUE_RANDOM := true          # classic independent-random shot colours by default
+const DEF_CONTROL_SCHEME := ControlScheme.CLICK   # neutral fallback; the autoload picks a platform-aware default when unset
 const DEF_RESOLUTION := Vector2i(1920, 1080)
 const DEF_DISPLAY_MODE := 3            # Window.MODE_FULLSCREEN (borderless) — matches launch behaviour
 const DEF_VSYNC := false
@@ -48,7 +52,6 @@ const DEF_SHADOWS := Shadows.HIGH
 const DEF_SSAO := false
 const DEF_GLOW := true
 const DEF_TEXT_GLITCH := true           # title shiver on by default (accessibility opt-out)
-const DEF_TEXT_ABERRATION := true       # title chromatic-aberration flicker on by default
 const DEF_VOLUME := 1.0
 
 var path: String
@@ -75,6 +78,19 @@ func get_true_random() -> bool:
 func set_true_random(v: bool) -> void:
 	_cf.set_value(SECTION_GAMEPLAY, "true_random", v)
 	_save()
+
+func get_control_scheme() -> int:
+	return int(_cf.get_value(SECTION_GAMEPLAY, "control_scheme", DEF_CONTROL_SCHEME))
+
+func set_control_scheme(v: int) -> void:
+	_cf.set_value(SECTION_GAMEPLAY, "control_scheme", v)
+	_save()
+
+## True once the player has explicitly chosen a scheme. The autoload uses this to tell
+## "never set" from a real choice, so it can resolve a platform-aware default (touch ->
+## HOLD) on first run without silently writing the INI here.
+func has_control_scheme() -> bool:
+	return _cf.has_section_key(SECTION_GAMEPLAY, "control_scheme")
 
 
 # --- Video ------------------------------------------------------------------
@@ -143,13 +159,6 @@ func get_text_glitch() -> bool:
 
 func set_text_glitch(v: bool) -> void:
 	_cf.set_value(SECTION_GRAPHICS, "text_glitch", v)
-	_save()
-
-func get_text_aberration() -> bool:
-	return bool(_cf.get_value(SECTION_GRAPHICS, "text_aberration", DEF_TEXT_ABERRATION))
-
-func set_text_aberration(v: bool) -> void:
-	_cf.set_value(SECTION_GRAPHICS, "text_aberration", v)
 	_save()
 
 

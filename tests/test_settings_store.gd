@@ -25,6 +25,8 @@ func test_defaults() -> void:
 	var s := SettingsStore.new(TEST_PATH)
 	assert_false(s.get_aim_enabled(), "aim off by default")
 	assert_true(s.get_true_random(), "true random on by default")
+	assert_eq(s.get_control_scheme(), SettingsStore.ControlScheme.CLICK, "control scheme defaults to Click")
+	assert_false(s.has_control_scheme(), "control scheme unset on a fresh store")
 	assert_eq(s.get_resolution(), Vector2i(1920, 1080), "default resolution")
 	assert_eq(s.get_display_mode(), 3, "default mode = borderless fullscreen")
 	assert_false(s.get_vsync(), "vsync off by default")
@@ -34,7 +36,6 @@ func test_defaults() -> void:
 	assert_false(s.get_ssao(), "ssao off by default")
 	assert_true(s.get_glow(), "glow on by default")
 	assert_true(s.get_text_glitch(), "text glitch on by default")
-	assert_true(s.get_text_aberration(), "text aberration on by default")
 	for ch in SettingsStore.VOLUME_CHANNELS:
 		assert_eq(s.get_volume(ch), 1.0, "%s volume defaults to full" % ch)
 
@@ -43,6 +44,7 @@ func test_persistence_roundtrip() -> void:
 	var s := SettingsStore.new(TEST_PATH)
 	s.set_aim_enabled(true)
 	s.set_true_random(false)
+	s.set_control_scheme(SettingsStore.ControlScheme.HOLD)
 	s.set_resolution(Vector2i(2560, 1440))
 	s.set_display_mode(0)
 	s.set_vsync(true)
@@ -52,12 +54,13 @@ func test_persistence_roundtrip() -> void:
 	s.set_ssao(true)
 	s.set_glow(false)
 	s.set_text_glitch(false)
-	s.set_text_aberration(false)
 	s.set_volume(&"gameplay", 0.5)
 
 	var t := SettingsStore.new(TEST_PATH)   # fresh instance, same path
 	assert_true(t.get_aim_enabled(), "aim persisted")
 	assert_false(t.get_true_random(), "true_random persisted")
+	assert_eq(t.get_control_scheme(), SettingsStore.ControlScheme.HOLD, "control scheme persisted")
+	assert_true(t.has_control_scheme(), "control scheme reads as set after persisting")
 	assert_eq(t.get_resolution(), Vector2i(2560, 1440), "resolution persisted")
 	assert_eq(t.get_display_mode(), 0, "display mode persisted")
 	assert_true(t.get_vsync(), "vsync persisted")
@@ -67,7 +70,6 @@ func test_persistence_roundtrip() -> void:
 	assert_true(t.get_ssao(), "ssao persisted")
 	assert_false(t.get_glow(), "glow persisted")
 	assert_false(t.get_text_glitch(), "text glitch persisted")
-	assert_false(t.get_text_aberration(), "text aberration persisted")
 	assert_almost_eq(t.get_volume(&"gameplay"), 0.5, 0.001, "gameplay volume persisted")
 
 

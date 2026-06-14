@@ -7,12 +7,18 @@ extends Node3D
 ## input only — mirroring the 2D Shooter.
 
 signal fired
+## HOLD scheme only: true while the fire button is held (press -> release), so the
+## controller can show the aim ray for the duration of the aim. Never emitted in CLICK.
+signal aim_active_changed(active: bool)
 
 const NEXT_SCALE := 0.6    # the queued sphere is shown smaller, off to the side
 const RELOAD_TIME := 0.16  # next sphere sliding into the muzzle slot
 const APPEAR_TIME := 0.14  # fresh next sphere growing into the side slot
 
 var enabled := true
+## CLICK (false): fire on press. HOLD (true): press begins aiming, release fires.
+## Set once by the controller at level build from the player's Gameplay setting.
+var hold_to_fire := false
 var current_color := 0
 var next_color := 1
 
@@ -90,7 +96,16 @@ func _kill_reload() -> void:
 
 
 func _unhandled_input(event: InputEvent) -> void:
-	if not enabled:
-		return
-	if event.is_action_pressed("fire"):
+	if hold_to_fire:
+		# Press starts the aim (only when we're allowed to fire); release always clears
+		# the aim flag — even if firing was disabled mid-hold — so the ray can't stick
+		# on, then fires only if still enabled.
+		if event.is_action_pressed("fire"):
+			if enabled:
+				aim_active_changed.emit(true)
+		elif event.is_action_released("fire"):
+			aim_active_changed.emit(false)
+			if enabled:
+				fired.emit()
+	elif enabled and event.is_action_pressed("fire"):
 		fired.emit()

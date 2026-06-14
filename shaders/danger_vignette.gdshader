@@ -1,16 +1,16 @@
 // Red "smoke" injury vignette for the danger tiers. Lives on a ColorRect in the
 // Dread CanvasLayer (BELOW the Ui layer), so it never covers the HUD. It is
 // edge-concentrated — a radial mask that is ~0 in the centre so the play board
-// stays clear — and throbs with the heartbeat: `pulse_speed` is set to the same
-// rad/s as the bottom danger line (TAU * bpm / 60). `intensity`, `edge` and
-// `pulse_speed` are all driven/tweened from LevelController3D; at intensity 0 the
-// rect is fully transparent.
+// stays clear — and throbs with the heartbeat: `phase` is the shared beat phase
+// (radians) the bottom danger line also uses, integrated on the CPU so a changing
+// BPM stays continuous. `intensity`, `edge` and `phase` are all driven from
+// LevelController3D; at intensity 0 the rect is fully transparent.
 shader_type canvas_item;
 
 uniform vec3 danger_color : source_color = vec3(0.62, 0.02, 0.03);
 uniform float intensity : hint_range(0.0, 1.0) = 0.0;   // master fade (0 = invisible)
 uniform float edge : hint_range(0.2, 0.9) = 0.62;       // vignette onset; lower = reaches further in
-uniform float pulse_speed = 7.0;                        // rad/s, matched to the heartbeat BPM
+uniform float phase = 0.0;                              // beat phase (rad), shared with the danger line
 uniform float pulse_depth : hint_range(0.0, 1.0) = 0.45; // how much the beat dips the brightness
 uniform float scale = 3.0;
 uniform float drift = 0.06;
@@ -51,7 +51,7 @@ void fragment() {
 	float smoke = 0.55 + n * 0.7;
 
 	// Heartbeat throb: one sharp thump per beat, biased toward dim.
-	float beat = 0.5 + 0.5 * sin(TIME * pulse_speed);
+	float beat = 0.5 + 0.5 * sin(phase);
 	beat *= beat;
 	float pulse = mix(1.0 - pulse_depth, 1.0, beat);
 
