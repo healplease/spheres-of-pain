@@ -2,6 +2,7 @@
 .godot/
 /android/
 .vscode/
+# Third-party plugins — newcomers install these (see README "First-time setup")
 addons/
 
 # Scratch dir for Claude/session intermediate files (screenshots, logs, redirected

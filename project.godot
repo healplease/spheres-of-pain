@@ -23,6 +23,9 @@ Log="*res://scripts/log.gd"
 GameState="*res://scripts/game_state.gd"
 Sound="*res://scripts/sound_manager.gd"
 Settings="*res://scripts/settings.gd"
+PhantomCameraManager="*uid://duq6jhf6unyis"
+RuntimeDebugTools="*uid://c6bkea7amdoay"
+LimboConsole="*res://addons/limbo_console/limbo_console.gd"
 
 [display]
 
@@ -37,7 +40,7 @@ export/convert_text_resources_to_binary=false
 
 [editor_plugins]
 
-enabled=PackedStringArray("res://addons/gut/plugin.cfg")
+enabled=PackedStringArray("res://addons/gut/plugin.cfg", "res://addons/phantom_camera/plugin.cfg", "res://addons/runtime_debug_tools/plugin.cfg", "res://addons/limbo_console/plugin.cfg")
 
 [gui]
 
@@ -61,6 +64,21 @@ toggle_aim={
 "events": [Object(InputEventKey,"resource_local_to_scene":false,"resource_name":"","device":-1,"window_id":0,"alt_pressed":false,"shift_pressed":false,"ctrl_pressed":false,"meta_pressed":false,"pressed":false,"keycode":65,"physical_keycode":65,"key_label":0,"unicode":97,"location":0,"echo":false,"script":null)
 ]
 }
+limbo_console_toggle={
+"deadzone": 0.5,
+"events": [Object(InputEventKey,"resource_local_to_scene":false,"resource_name":"","device":-1,"window_id":0,"alt_pressed":false,"shift_pressed":false,"ctrl_pressed":false,"meta_pressed":false,"pressed":false,"keycode":96,"physical_keycode":0,"key_label":0,"unicode":0,"location":0,"echo":false,"script":null)
+]
+}
+limbo_auto_complete_reverse={
+"deadzone": 0.5,
+"events": [Object(InputEventKey,"resource_local_to_scene":false,"resource_name":"","device":-1,"window_id":0,"alt_pressed":false,"shift_pressed":true,"ctrl_pressed":false,"meta_pressed":false,"pressed":false,"keycode":4194306,"physical_keycode":0,"key_label":0,"unicode":0,"location":0,"echo":false,"script":null)
+]
+}
+limbo_console_search_history={
+"deadzone": 0.5,
+"events": [Object(InputEventKey,"resource_local_to_scene":false,"resource_name":"","device":-1,"window_id":0,"alt_pressed":false,"shift_pressed":false,"ctrl_pressed":true,"meta_pressed":false,"pressed":false,"keycode":82,"physical_keycode":0,"key_label":0,"unicode":0,"location":0,"echo":false,"script":null)
+]
+}
 
 [physics]
 
@@ -68,7 +86,6 @@ toggle_aim={
 
 [rendering]
 
-renderer/rendering_method.web="gl_compatibility"
 rendering_device/driver.windows="d3d12"
 anti_aliasing/quality/msaa_3d=3
 

@@ -1,0 +1,14 @@
+# Pre-commit hooks — Spheres of Pain
+#
+# One-time per clone:   pre-commit install
+# Run on everything:    pre-commit run --all-files
+#
+# The hooks fetch their own pinned gdtoolkit into an isolated env, so a global
+# `pip install gdtoolkit` is only needed to run gdformat/gdlint by hand.
+# Only tracked .gd files are checked; addons/ is gitignored and never linted.
+repos:
+  - repo: https://github.com/Scony/godot-gdscript-toolkit
+    rev: 4.5.0
+    hooks:
+      - id: gdformat
+      - id: gdlint
