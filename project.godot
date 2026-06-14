@@ -37,7 +37,7 @@ export/convert_text_resources_to_binary=false
 
 [editor_plugins]
 
-enabled=PackedStringArray("res://addons/godot_mcp_server/plugin.cfg", "res://addons/gut/plugin.cfg")
+enabled=PackedStringArray("res://addons/gut/plugin.cfg")
 
 [gui]
 
@@ -75,6 +75,10 @@ anti_aliasing/quality/msaa_3d=3
 [shader_globals]
 
 text_glitch={
+"type": "float",
+"value": 1.0
+}
+text_aberration={
 "type": "float",
 "value": 1.0
 }

@@ -12,30 +12,26 @@ built in **Godot 4.6** (mechanics faithful to *Clusterz!*, our own grimdark leve
 
 ## Tooling & workflow
 
-**Default to the Godot MCP — it is the primary run+debug loop, not a last resort.**
-For *anything* involving the running engine — launching the game, reading
-logs/`print()`/errors, inspecting the scene tree or node properties, scaffolding scenes,
-screenshotting, running tests — **reach for `mcp__godot__*` FIRST.** Only fall back to a
-shell command (PowerShell/Bash `Start-Process`, `--headless`, `System.Drawing`, etc.) when
-no MCP tool fits or the MCP path has actually failed — and when you do, say *why* in one line.
-If you're about to shell out to drive the engine, stop and `ToolSearch` for the MCP tool first.
+**Godot MCP = the basic `@coding-solo/godot-mcp` server.** We deliberately moved off
+`godot-mcp-enhanced`: it was unreliable — its in-game bridge kept breaking and locking files.
+The basic server is **simpler and needs no in-project plugin** (no editor plugin, no localhost
+WebSocket, no injected `MCPBridge` autoload) — at the cost of a much smaller toolset. It's in
+`.mcp.json` (prefix `mcp__godot__*`, env `GODOT_PATH`); editing `.mcp.json` needs a Claude Code
+restart to take effect. Discover exact tool names with `ToolSearch` (e.g. "godot run project",
+"godot run scene") rather than assuming.
 
-The MCP server is **`godot-mcp-enhanced`** (configured in `.mcp.json`, prefix `mcp__godot__*`)
-— a large toolset (140+ tools). Discover exact tool names with `ToolSearch` (e.g. "godot run
-project", "godot screenshot", "godot game query", "godot run tests") rather than assuming;
-names differ from the basic server. Rough map of what to reach for:
-- **Run / inspect a live game:** `mcp__godot__game` (`game_bridge_install`, then `game_query`
-  for `get_tree`/`find_nodes`/`get_node_properties`/`take_screenshot`, `game_input` to drive it).
-- **Headless scene render + AI look:** `mcp__godot__screenshot` (`capture` then `analyze`).
-- **Runtime state / logs:** `mcp__godot__runtime`, `mcp__godot__game` queries.
-- **Scenes / scripts / tests:** `mcp__godot__scene`, `mcp__godot__script`, `mcp__godot__test`.
+**Use the MCP for the simple, stateless ops it does well** — launching the project or a scene,
+running headless, basic project/scene info. **For anything more complex, use Windows-native
+tooling instead** — there is no game bridge, so live-game driving, scene-tree/node inspection,
+screenshotting the running game, and reading runtime errors all go through the shell:
+- **Run + read logs:** PowerShell `Start-Process` (`-RedirectStandardOutput`/`-RedirectStandardError`
+  into `temp/`), or just open `temp/session.log` (the `Log` autoload writes it — see Observability).
+- **Headless tests / import:** the `& Godot.exe --headless …` commands below.
+- **Screenshot the running game:** PowerShell `System.Drawing` window capture (see Screenshots).
+- **Drive gameplay:** env `SOP_AUTOPLAY=1` + read the log (see Live gameplay verification).
 
 Hand-author `.tscn` when you need exact control.
 - Godot executable: `C:\Program Files\Godot\Godot.exe` (also in `.mcp.json` env `GODOT_PATH`).
-- Enhanced features (live editor edits, editor screenshots) need the in-editor plugin
-  **MCP Server** enabled (it is, in `project.godot [editor_plugins]`) and the editor running;
-  otherwise it falls back to headless mode. The plugin runs a localhost WebSocket (port 9090)
-  and writes an auth key to `.godot/mcp_editor.key`.
 
 **Unit tests use GUT** (`addons/gut/`, `class_name GutTest`). Tests live in `tests/` as
 `test_*.gd`; run headless:
@@ -58,7 +54,7 @@ place that formats every diagnostic line — use it (`Log.info(Log.PLAY, "msg", 
 `[  12.345] LEVEL CATEG message | key=val …` (uptime seconds, level, 6-char category,
 logfmt kv; values kept space-free). Levels TRACE<DEBUG<INFO<WARN<ERROR; threshold is DEBUG
 in debug builds / INFO in release, override with env `SOP_LOG_LEVEL=trace|debug|…`. WARN/ERROR
-also go through `push_warning`/`push_error` so the MCP runtime/error queries catch them.
+also go through `push_warning`/`push_error`, so they surface in Godot's error output / stderr.
 **To read what the game did, open `temp/session.log`** (the prior run is `session-prev.log`;
 exported/web builds write `user://logs/` instead). The instrumented backbone: `FLOW` scene
 nav + level load (GameState), `PLAY` level ready / danger tier / end, `SHOT`/`MODEL`
@@ -68,15 +64,13 @@ fire→land→attach, `CONFIG` applied settings. **Keep the pure core (`scripts/
 **Live gameplay verification:** synthetic *mouse* clicks do NOT reach the Godot window
 (keyboard does). To exercise the fire→land→attach pipeline, set env `SOP_AUTOPLAY=1`; the
 controller fires scripted shots, which surface as `SHOT`/`MODEL` lines in the log (see
-Observability above). Prefer driving + reading this via the Godot MCP (`mcp__godot__game`); if
-you must shell out, redirect output into `temp/`. A real mouse works in normal play.
+Observability above). Launch via PowerShell `Start-Process` and read the redirected output in
+`temp/` (or `temp/session.log`). A real mouse works in normal play.
 
-**Screenshots:** prefer the MCP — `mcp__godot__screenshot` (headless scene `capture`, then
-`analyze`) or `mcp__godot__game` `take_screenshot` for the *running* game (needs
-`game_bridge_install`). PowerShell `System.Drawing` + `GetWindowRect`/`CopyFromScreen` (window
-title "Spheres of Pain") is the **fallback** for grabbing the actual OS window — e.g. a real
-fullscreen play session — and it must save into `temp/`. Always *look* at the result; a blank
-frame is a failed launch.
+**Screenshots:** grab the actual OS window with PowerShell `System.Drawing` +
+`GetWindowRect`/`CopyFromScreen`. Match the window title: the running game is **"Spheres of
+Pain (DEBUG)"**; the editor is "Spheres of Pain - Godot Engine" — target DEBUG. Save into
+`temp/`. Always *look* at the result; a blank frame is a failed launch.
 
 **When unsure about a Godot API/component, consult the docs — don't guess:**
 - Docs index: <https://docs.godotengine.org/en/stable/index.html>
