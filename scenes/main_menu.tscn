@@ -71,6 +71,7 @@ theme_override_constants/separation = 14
 alignment = 1
 
 [node name="Title" type="Label" parent="Center/VBox"]
+theme_type_variation = &"TitleText"
 material = SubResource("SM_title")
 layout_mode = 2
 theme_override_colors/font_color = Color(0.78, 0.72, 0.65, 1)
@@ -135,6 +136,7 @@ mouse_filter = 2
 theme_override_constants/separation = 28
 
 [node name="Word0" type="Label" parent="IntroOverlay/WordGroup"]
+theme_type_variation = &"TitleText"
 material = SubResource("SM_title")
 modulate = Color(1, 1, 1, 0)
 layout_mode = 2
@@ -149,6 +151,7 @@ horizontal_alignment = 1
 vertical_alignment = 1
 
 [node name="Word1" type="Label" parent="IntroOverlay/WordGroup"]
+theme_type_variation = &"TitleText"
 material = SubResource("SM_title")
 modulate = Color(1, 1, 1, 0)
 layout_mode = 2
@@ -163,6 +166,7 @@ horizontal_alignment = 1
 vertical_alignment = 1
 
 [node name="Word2" type="Label" parent="IntroOverlay/WordGroup"]
+theme_type_variation = &"TitleText"
 material = SubResource("SM_title")
 modulate = Color(1, 1, 1, 0)
 layout_mode = 2

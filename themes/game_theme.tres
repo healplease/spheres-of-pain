@@ -1,9 +1,16 @@
-[gd_resource type="Theme" load_steps=6 format=3]
+[gd_resource type="Theme" load_steps=8 format=3]
 
-; Global default theme (registered via gui/theme/custom). Its sole job: make every
-; Button translucent so the abyss/board reads softly through instead of an opaque
-; slab — most visible on the game-end panel. Palette mirrors the only other styled
-; surface in the project, scenes/ui/hint.tscn (SB_hint), at much lower alpha.
+; Global default theme (registered via gui/theme/custom). Two jobs:
+;  1. Type: default_font = Spectral (body/UI everywhere); the "TitleText" variation
+;     swaps in Pirata One (the display/blackletter face) for title labels — a node
+;     opts in with theme_type_variation = &"TitleText". Per-node font_size overrides
+;     still win, so each title keeps its own size.
+;  2. Buttons: translucent styleboxes so the abyss/board reads softly through instead
+;     of an opaque slab — most visible on the game-end panel. Palette mirrors the only
+;     other styled surface in the project, scenes/ui/hint.tscn (SB_hint), at lower alpha.
+
+[ext_resource type="FontFile" path="res://themes/fonts/Spectral-Regular.ttf" id="1_body"]
+[ext_resource type="FontFile" path="res://themes/fonts/PirataOne-Regular.ttf" id="2_title"]
 
 [sub_resource type="StyleBoxFlat" id="SB_normal"]
 content_margin_left = 16.0
@@ -86,8 +93,11 @@ corner_radius_bottom_right = 4
 corner_radius_bottom_left = 4
 
 [resource]
+default_font = ExtResource("1_body")
 Button/styles/normal = SubResource("SB_normal")
 Button/styles/hover = SubResource("SB_hover")
 Button/styles/pressed = SubResource("SB_pressed")
 Button/styles/focus = SubResource("SB_focus")
 Button/styles/disabled = SubResource("SB_disabled")
+TitleText/base_type = &"Label"
+TitleText/fonts/font = ExtResource("2_title")

@@ -150,6 +150,7 @@ mouse_filter = 2
 color = Color(0, 0, 0, 1)
 
 [node name="Banner" type="Label" parent="Ui" unique_id=1120620941]
+theme_type_variation = &"TitleText"
 visible = false
 material = SubResource("SM_banner")
 offset_top = 230.0
@@ -192,6 +193,7 @@ text = "Spheres  --
 Shots  0"
 
 [node name="LevelName" type="Label" parent="Ui"]
+theme_type_variation = &"TitleText"
 material = SubResource("SM_hud_title")
 offset_top = 12.0
 offset_right = 1280.0
