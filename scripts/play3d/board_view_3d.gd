@@ -6,7 +6,7 @@ extends Node3D
 ## BoardView; only the presentation differs. Logical 2D cell positions are mapped
 ## to 3D via S (metres per logical pixel; one cell ≈ 1 m).
 
-const S := 1.0 / 56.0
+var _s := 1.0 / 56.0   # metres per logical pixel = 1/diameter; set in setup()
 
 ## Sphere colour palette (colour id -> hue). The controller builds one
 ## StandardMaterial3D per entry. Final spheres get engraved sigils (the
@@ -47,13 +47,14 @@ func setup(p_model: GridModel, p_mesh: Mesh, p_mats: Array, p_black: ShaderMater
 	_mats = p_mats
 	_black_mat = p_black
 	diameter = p_diameter
+	_s = 1.0 / p_diameter   # world scale follows the configured sphere size
 	_build_all()
 
 
 ## Board-local 3D position of a cell (the node sits at the board origin).
 func cell_local(cell: Vector2i) -> Vector3:
 	var l := Hex.cell_to_world(cell, Vector2.ZERO, diameter)
-	return Vector3(l.x * S, -l.y * S, 0.0)
+	return Vector3(l.x * _s, -l.y * _s, 0.0)
 
 
 ## Initial field: every sphere created instantly at full size (no intro animation).

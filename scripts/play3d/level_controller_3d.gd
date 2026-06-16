@@ -7,7 +7,7 @@ extends Node3D
 ## and a projectile flying on the plane. The simulation runs in logical 2D pixel
 ## space; `to3d`/`to2d` map that plane to/from 3D world space.
 
-const S := 1.0 / 56.0          # metres per logical pixel; one cell ≈ 1 m
+var _s := 1.0 / 56.0           # metres per logical pixel = 1/diameter; set in _ready
 const SPHERE_RADIUS := 0.46
 const FRAME_THICK := 0.3       # frame bar cross-section (metres)
 const FRAME_DEPTH := 0.6       # frame bar depth toward the camera (metres)
@@ -127,13 +127,14 @@ var _danger_speed := DANGER_LINE_AMBIENT
 
 
 func to3d(p: Vector2) -> Vector3:
-	return Vector3((p.x - origin2d.x) * S, -(p.y - origin2d.y) * S, 0.0)
+	return Vector3((p.x - origin2d.x) * _s, -(p.y - origin2d.y) * _s, 0.0)
 
 func to2d(w: Vector3) -> Vector2:
-	return Vector2(w.x / S + origin2d.x, -w.y / S + origin2d.y)
+	return Vector2(w.x / _s + origin2d.x, -w.y / _s + origin2d.y)
 
 
 func _ready() -> void:
+	_s = 1.0 / diameter   # world scale follows the configured sphere size (one cell ≈ 1 m)
 	randomize()
 	_build_visual_assets()
 	_setup_environment()
