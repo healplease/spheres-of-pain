@@ -56,7 +56,7 @@ const BANNER_RED := Color(0.86, 0.13, 0.12, 1.0)    # lose verdict colour
 enum DangerTier { NONE, SLOW, FAST }
 
 @export var diameter := 56.0
-@export var num_colors := 5
+@export_range(1, 10) var num_colors := 5  # capped at BoardView3D.PALETTE.size()
 ## Field size is rolled randomly inside these inclusive ranges on each level.
 @export var min_columns := 10
 @export var max_columns := 50

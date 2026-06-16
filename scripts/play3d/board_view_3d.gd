@@ -11,6 +11,9 @@ const S := 1.0 / 56.0
 ## Sphere colour palette (colour id -> hue). The controller builds one
 ## StandardMaterial3D per entry. Final spheres get engraved sigils (the
 ## colorblind cue) in M3.
+# Must hold at least as many entries as the model's max colour count
+# (LevelResource.validate allows num_colors up to 10), or higher ids would alias
+# onto lower ones via `% _mats.size()`. Hues are chosen to stay distinguishable.
 const PALETTE: Array[Color] = [
 	Color("c0392b"),  # red
 	Color("2ec24a"),  # green  — pulled toward pure green, brighter
@@ -19,6 +22,9 @@ const PALETTE: Array[Color] = [
 	Color("8e44ad"),  # purple
 	Color("1ec3e0"),  # cyan   — lighter and bluer, no longer reads as green
 	Color("d35400"),  # orange
+	Color("e84393"),  # magenta — hot pink, distinct from red and purple
+	Color("8d5a2b"),  # brown   — warm, low-chroma, distinct from orange
+	Color("cfd8dc"),  # bone    — pale grey-white, the colourless sphere
 ]
 
 # Animation tuning.
