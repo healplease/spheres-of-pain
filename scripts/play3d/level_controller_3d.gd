@@ -626,15 +626,6 @@ func _on_fired(reaim := true) -> void:
 
 func _on_landed(cell: Vector2i, color: int) -> void:
 	var res := model.attach(cell, color)
-	Log.debug(Log.MODEL, "attach", {
-		"cell": cell,
-		"color": color,
-		"pop": res.did_pop,
-		"popped": res.popped.size(),
-		"orphaned": res.orphaned.size(),
-		"colored": model.count_colored(),
-		"max_row": model.max_row(),
-	})
 	if res.did_pop:
 		# One cluster-sized pop burst, not one sound per sphere — keeps big clears
 		# (the matched group plus any spheres it orphans) from turning to noise.
@@ -645,8 +636,21 @@ func _on_landed(cell: Vector2i, color: int) -> void:
 	# spheres just animate in (no removals, so pop_origin is irrelevant).
 	var settle := board.sync([cell], cell)   # the landed sphere appears full-size
 	_validate_load()
-	_update_status()
-	_update_heartbeat()   # a grow may have closed on the line; a pop may have backed off it
+	# Board is now in its final post-resolution state; scan it once and share the
+	# counts with the log, the HUD, and the heartbeat instead of rescanning thrice.
+	var colored := model.count_colored()
+	var deepest := model.max_row()
+	Log.debug(Log.MODEL, "attach", {
+		"cell": cell,
+		"color": color,
+		"pop": res.did_pop,
+		"popped": res.popped.size(),
+		"orphaned": res.orphaned.size(),
+		"colored": colored,
+		"max_row": deepest,
+	})
+	_update_status(colored)
+	_update_heartbeat(model.danger_row - deepest)   # a grow may have closed on the line; a pop may have backed off it
 	# Hold the verdict until the board has visually settled — the win banner must
 	# not appear while the last cluster is still popping.
 	if model.is_won() or model.is_lost():
@@ -688,15 +692,21 @@ func _validate_load() -> void:
 
 # --- danger heartbeat ---------------------------------------------------------
 
+const ROWS_TO_DANGER_UNSET := 0x7fffffff   # "not supplied" sentinel for _update_heartbeat
+
 ## Map how close the field is to the lose line onto a danger tier, then route it to
 ## BOTH the audio (the two heartbeats) and the visuals (the bottom-line blink rate
 ## and the red injury vignette) so they stay locked together. SLOW at exactly two
 ## rows, FAST at one; anything else — safe, won, or lost (game_over) — is NONE.
-## Called after every shot resolves and when the game ends.
-func _update_heartbeat() -> void:
+## Called after every shot resolves and when the game ends. `rows_left` lets the
+## caller pass an already-computed rows_to_danger() to avoid a redundant whole-board
+## max_row() scan; omit it and we compute it here.
+func _update_heartbeat(rows_left: int = ROWS_TO_DANGER_UNSET) -> void:
+	if rows_left == ROWS_TO_DANGER_UNSET:
+		rows_left = model.rows_to_danger()
 	var tier := DangerTier.NONE
 	if not game_over:
-		match model.rows_to_danger():
+		match rows_left:
 			2: tier = DangerTier.SLOW
 			1: tier = DangerTier.FAST
 	_set_danger(tier)
@@ -904,8 +914,12 @@ func _size_text_backdrop(bg: ColorRect, label: Label, pad_y: float) -> void:
 ## The top-left HUD counter: coloured spheres still on the field (the clear target)
 ## and a running tally of shots fired. The level name and exits live in their own
 ## HUD nodes; the old one-line hint string is gone.
-func _update_status() -> void:
-	counter_label.text = "Spheres  %d\nShots  %d" % [model.count_colored(), _shots_fired]
+## `colored` lets the caller pass an already-computed count_colored() to avoid a
+## redundant whole-board scan; omit it (-1) and we scan here.
+func _update_status(colored: int = -1) -> void:
+	if colored < 0:
+		colored = model.count_colored()
+	counter_label.text = "Spheres  %d\nShots  %d" % [colored, _shots_fired]
 
 
 # --- dev autoplay -------------------------------------------------------------
