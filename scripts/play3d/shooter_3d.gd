@@ -15,7 +15,19 @@ const NEXT_SCALE := 0.6    # the queued sphere is shown smaller, off to the side
 const RELOAD_TIME := 0.16  # next sphere sliding into the muzzle slot
 const APPEAR_TIME := 0.14  # fresh next sphere growing into the side slot
 
-var enabled := true
+## Whether the gun can fire. Disabled while a shot is in flight; the controller
+## flips it back on when the shot resolves. In HOLD, a re-enable that lands while
+## the fire button is still physically held re-arms the aim ray — otherwise the
+## press that should have shown it was swallowed (it arrived while disabled).
+var _enabled := true
+var enabled: bool:
+	get:
+		return _enabled
+	set(value):
+		var was := _enabled
+		_enabled = value
+		if value and not was and hold_to_fire and Input.is_action_pressed("fire"):
+			aim_active_changed.emit(true)
 ## CLICK (false): fire on press. HOLD (true): press begins aiming, release fires.
 ## Set once by the controller at level build from the player's Gameplay setting.
 var hold_to_fire := false
