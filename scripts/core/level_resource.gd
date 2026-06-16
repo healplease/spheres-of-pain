@@ -62,7 +62,10 @@ func validate() -> PackedStringArray:
 		problems.append("num_colors must be in [1, 10]")
 	if layout.is_empty():
 		problems.append("layout is empty")
-	if danger_row <= layout.size():
+	# Authored rows are indices 0..size-1; is_lost() triggers at cell.y >= danger_row.
+	# So danger_row == layout.size() (the first empty row below the layout) is the
+	# tightest valid line; only danger_row < size puts an authored sphere on/over it.
+	if danger_row < layout.size():
 		problems.append("danger_row (%d) must be below the layout (%d rows)" % [danger_row, layout.size()])
 	var breakable := 0
 	for r in range(layout.size()):
