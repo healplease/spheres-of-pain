@@ -1,60 +1,19 @@
-[gd_resource type="Theme" load_steps=8 format=3]
+[gd_resource type="Theme" format=3 uid="uid://btcgex5sx4kwl"]
 
-; Global default theme (registered via gui/theme/custom). Two jobs:
-;  1. Type: default_font = Spectral (body/UI everywhere); the "TitleText" variation
-;     swaps in Pirata One (the display/blackletter face) for title labels — a node
-;     opts in with theme_type_variation = &"TitleText". Per-node font_size overrides
-;     still win, so each title keeps its own size.
-;  2. Buttons: translucent styleboxes so the abyss/board reads softly through instead
-;     of an opaque slab — most visible on the game-end panel. Palette mirrors the only
-;     other styled surface in the project, scenes/ui/hint.tscn (SB_hint), at lower alpha.
+[ext_resource type="FontFile" uid="uid://0ljyrmqjqnyt" path="res://themes/fonts/Spectral-Regular.ttf" id="1_body"]
+[ext_resource type="FontFile" uid="uid://bhexmxqsfejil" path="res://themes/fonts/PirataOne-Regular.ttf" id="2_title"]
 
-[ext_resource type="FontFile" path="res://themes/fonts/Spectral-Regular.ttf" id="1_body"]
-[ext_resource type="FontFile" path="res://themes/fonts/PirataOne-Regular.ttf" id="2_title"]
-
-[sub_resource type="StyleBoxFlat" id="SB_normal"]
+[sub_resource type="StyleBoxFlat" id="SB_disabled"]
 content_margin_left = 16.0
 content_margin_top = 8.0
 content_margin_right = 16.0
 content_margin_bottom = 8.0
-bg_color = Color(0.05, 0.04, 0.07, 0.45)
+bg_color = Color(0.04, 0.03, 0.05, 0.3)
 border_width_left = 1
 border_width_top = 1
 border_width_right = 1
 border_width_bottom = 1
-border_color = Color(0.4, 0.36, 0.45, 0.45)
-corner_radius_top_left = 4
-corner_radius_top_right = 4
-corner_radius_bottom_right = 4
-corner_radius_bottom_left = 4
-
-[sub_resource type="StyleBoxFlat" id="SB_hover"]
-content_margin_left = 16.0
-content_margin_top = 8.0
-content_margin_right = 16.0
-content_margin_bottom = 8.0
-bg_color = Color(0.11, 0.06, 0.09, 0.6)
-border_width_left = 1
-border_width_top = 1
-border_width_right = 1
-border_width_bottom = 1
-border_color = Color(0.55, 0.3, 0.34, 0.7)
-corner_radius_top_left = 4
-corner_radius_top_right = 4
-corner_radius_bottom_right = 4
-corner_radius_bottom_left = 4
-
-[sub_resource type="StyleBoxFlat" id="SB_pressed"]
-content_margin_left = 16.0
-content_margin_top = 8.0
-content_margin_right = 16.0
-content_margin_bottom = 8.0
-bg_color = Color(0.03, 0.02, 0.04, 0.7)
-border_width_left = 1
-border_width_top = 1
-border_width_right = 1
-border_width_bottom = 1
-border_color = Color(0.45, 0.2, 0.24, 0.7)
+border_color = Color(0.3, 0.28, 0.34, 0.3)
 corner_radius_top_left = 4
 corner_radius_top_right = 4
 corner_radius_bottom_right = 4
@@ -76,17 +35,49 @@ corner_radius_top_right = 4
 corner_radius_bottom_right = 4
 corner_radius_bottom_left = 4
 
-[sub_resource type="StyleBoxFlat" id="SB_disabled"]
+[sub_resource type="StyleBoxFlat" id="SB_hover"]
 content_margin_left = 16.0
 content_margin_top = 8.0
 content_margin_right = 16.0
 content_margin_bottom = 8.0
-bg_color = Color(0.04, 0.03, 0.05, 0.3)
+bg_color = Color(0.11, 0.06, 0.09, 0.6)
 border_width_left = 1
 border_width_top = 1
 border_width_right = 1
 border_width_bottom = 1
-border_color = Color(0.3, 0.28, 0.34, 0.3)
+border_color = Color(0.55, 0.3, 0.34, 0.7)
+corner_radius_top_left = 4
+corner_radius_top_right = 4
+corner_radius_bottom_right = 4
+corner_radius_bottom_left = 4
+
+[sub_resource type="StyleBoxFlat" id="SB_normal"]
+content_margin_left = 16.0
+content_margin_top = 8.0
+content_margin_right = 16.0
+content_margin_bottom = 8.0
+bg_color = Color(0.05, 0.04, 0.07, 0.45)
+border_width_left = 1
+border_width_top = 1
+border_width_right = 1
+border_width_bottom = 1
+border_color = Color(0.4, 0.36, 0.45, 0.45)
+corner_radius_top_left = 4
+corner_radius_top_right = 4
+corner_radius_bottom_right = 4
+corner_radius_bottom_left = 4
+
+[sub_resource type="StyleBoxFlat" id="SB_pressed"]
+content_margin_left = 16.0
+content_margin_top = 8.0
+content_margin_right = 16.0
+content_margin_bottom = 8.0
+bg_color = Color(0.03, 0.02, 0.04, 0.7)
+border_width_left = 1
+border_width_top = 1
+border_width_right = 1
+border_width_bottom = 1
+border_color = Color(0.45, 0.2, 0.24, 0.7)
 corner_radius_top_left = 4
 corner_radius_top_right = 4
 corner_radius_bottom_right = 4
@@ -94,10 +85,10 @@ corner_radius_bottom_left = 4
 
 [resource]
 default_font = ExtResource("1_body")
-Button/styles/normal = SubResource("SB_normal")
-Button/styles/hover = SubResource("SB_hover")
-Button/styles/pressed = SubResource("SB_pressed")
-Button/styles/focus = SubResource("SB_focus")
 Button/styles/disabled = SubResource("SB_disabled")
+Button/styles/focus = SubResource("SB_focus")
+Button/styles/hover = SubResource("SB_hover")
+Button/styles/normal = SubResource("SB_normal")
+Button/styles/pressed = SubResource("SB_pressed")
 TitleText/base_type = &"Label"
 TitleText/fonts/font = ExtResource("2_title")

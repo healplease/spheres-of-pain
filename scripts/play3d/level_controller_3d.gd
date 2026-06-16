@@ -7,21 +7,33 @@ extends Node3D
 ## and a projectile flying on the plane. The simulation runs in logical 2D pixel
 ## space; `to3d`/`to2d` map that plane to/from 3D world space.
 
-var _s := 1.0 / 56.0           # metres per logical pixel = 1/diameter; set in _ready
 const SPHERE_RADIUS := 0.46
-const FRAME_THICK := 0.3       # frame bar cross-section (metres)
-const FRAME_DEPTH := 0.6       # frame bar depth toward the camera (metres)
+const FRAME_THICK := 0.3  # frame bar cross-section (metres)
+const FRAME_DEPTH := 0.6  # frame bar depth toward the camera (metres)
 const FIELD_CENTER_X := 640.0  # logical x the field + muzzle are centred on
-const TOP_Y := 80.0            # logical y of the row-0 sphere centres
-const GROWTH_BUFFER := 9       # empty rows below the fill before the danger line
+const TOP_Y := 80.0  # logical y of the row-0 sphere centres
+const GROWTH_BUFFER := 9  # empty rows below the fill before the danger line
 # Camera framing margins + backdrop offset live in StageView, which owns the camera.
 # Vertical stack below the danger (lose) line, in row-steps: the gun sits this far
 # below the line, then the red miss-exit bar sits this far below the gun. A smaller
 # MUZZLE_GAP lifts the whole gun+bar unit toward the field, so they sit closer to
 # the spheres at the moment those reach the line and consume them.
-const MUZZLE_GAP_ROWS := 0.3   # gun below the danger line (was 0.6 — hand-tuned 690)
-const EXIT_GAP_ROWS := 0.6     # red miss-exit bar below the gun
+const MUZZLE_GAP_ROWS := 0.3  # gun below the danger line (was 0.6 — hand-tuned 690)
+const EXIT_GAP_ROWS := 0.6  # red miss-exit bar below the gun
 
+# --- Aim-ray dots ---
+# The trajectory preview is a dotted line tinted to the loaded sphere's colour.
+# DOT and GAP are in logical pixels (the simulated path's own space), so they scale
+# naturally with perspective — tweak them to restyle the ray. ALPHA is the dot opacity.
+const PREVIEW_DOT := 6.0  # on-length of each dot along the path
+const PREVIEW_GAP := 9.0  # empty space between consecutive dots
+const PREVIEW_ALPHA := 0.85  # dot opacity (0..1)
+# On a hit, the resting place is marked with a dotted ring instead of drawing the
+# final snap segment. Radius is a multiple of the sphere radius (1.0 = bubble-sized).
+const PREVIEW_LAND_SCALE := 1.0
+const PREVIEW_RING_SEGMENTS := 48  # polyline resolution of the ring (higher = smoother)
+# Sentinel for _update_heartbeat's optional rows_left arg (see the danger section below).
+const ROWS_TO_DANGER_UNSET := 0x7fffffff  # "not supplied" sentinel for _update_heartbeat
 
 # The intro/end overlay (banner, lore, choice panel, fades) lives in CenterBanner;
 # the danger heartbeat/visuals live in DangerView. Both are driven from here.
@@ -40,9 +52,40 @@ const EXIT_GAP_ROWS := 0.6     # red miss-exit bar below the gun
 var columns := 11
 var rows := 5
 var danger_row := 12
-var origin2d := Vector2(346, 80)   # logical board origin (cell 0,0)
+var origin2d := Vector2(346, 80)  # logical board origin (cell 0,0)
 var muzzle2d := Vector2(640, 690)  # logical muzzle
-var _play_bottom := 720.0          # logical miss-exit line (below the muzzle)
+var model: GridModel
+var sim := ShotSimulator.new()
+var game_over := false
+var aim_ray_enabled := false  # trajectory preview hidden by default; [A] toggles
+
+var _s := 1.0 / 56.0  # metres per logical pixel = 1/diameter; set in _ready
+var _play_bottom := 720.0  # logical miss-exit line (below the muzzle)
+var _level: LevelResource = null  # null = free play (random board)
+var _bag := ShotBag.new()  # decides the gun's next colour (true-random or bag mode)
+var _mesh: SphereMesh
+var _mats: Array[StandardMaterial3D] = []
+var _black_mat: ShaderMaterial  # obsidian + self-lit fresnel rim (shaders/obsidian_rim.gdshader)
+var _preview_mesh := ImmediateMesh.new()
+var _preview_mat: StandardMaterial3D
+var _aim2d := Vector2(0, -1)
+var _last_sim: Dictionary = {}
+# The trajectory only changes when the aim moves or the board changes, so we
+# re-simulate on those events (mouse motion, shot resolution, ray shown) rather
+# than every frame. simulate() is a heavy per-step loop; running it idle was waste.
+var _aim_dirty := true
+# Whether the ray should currently show, before the aim_ray_enabled / game_over gates.
+# Always true in Click (ray shown whenever enabled); in Hold it's true only while the
+# fire button is held, so the ray appears only during an aim. Seeded in _ready().
+var _aim_active := true
+var _shots_fired := 0  # HUD counter; bumped on every shot
+# The danger subsystem (heartbeat audio + line/vignette shaders) lives in DangerView.
+# _build_frame creates the bottom-bar material into _danger_line_mat; _ready hands it
+# and the vignette material to the view, then set_tier() is driven via _update_heartbeat.
+var _danger_view: DangerView
+var _danger_line_mat: ShaderMaterial  # the bottom miss-exit bar (danger_line.gdshader)
+var _center_banner: CenterBanner  # owns the intro/end overlay + its fades
+var _stage_view: StageView  # owns the camera, backdrop, embers, environment
 
 @onready var world_env: WorldEnvironment = $WorldEnvironment
 @onready var light: DirectionalLight3D = $DirectionalLight3D
@@ -64,47 +107,17 @@ var _play_bottom := 720.0          # logical miss-exit line (below the muzzle)
 @onready var retry_button: Button = $Ui/EndPanel/RetryButton
 @onready var menu_button: Button = $Ui/EndPanel/MenuButton
 
-var model: GridModel
-var _level: LevelResource = null   # null = free play (random board)
-var sim := ShotSimulator.new()
-var _bag := ShotBag.new()          # decides the gun's next colour (true-random or bag mode)
-var _mesh: SphereMesh
-var _mats: Array[StandardMaterial3D] = []
-var _black_mat: ShaderMaterial   # obsidian + self-lit fresnel rim (shaders/obsidian_rim.gdshader)
-var _preview_mesh := ImmediateMesh.new()
-var _preview_mat: StandardMaterial3D
-var _aim2d := Vector2(0, -1)
-var _last_sim: Dictionary = {}
-# The trajectory only changes when the aim moves or the board changes, so we
-# re-simulate on those events (mouse motion, shot resolution, ray shown) rather
-# than every frame. simulate() is a heavy per-step loop; running it idle was waste.
-var _aim_dirty := true
-var game_over := false
-var aim_ray_enabled := false   # trajectory preview hidden by default; [A] toggles
-# Whether the ray should currently show, before the aim_ray_enabled / game_over gates.
-# Always true in Click (ray shown whenever enabled); in Hold it's true only while the
-# fire button is held, so the ray appears only during an aim. Seeded in _ready().
-var _aim_active := true
-var _shots_fired := 0          # HUD counter; bumped on every shot
-
-# The danger subsystem (heartbeat audio + line/vignette shaders) lives in DangerView.
-# _build_frame creates the bottom-bar material into _danger_line_mat; _ready hands it
-# and the vignette material to the view, then set_tier() is driven via _update_heartbeat.
-var _danger_view: DangerView
-var _danger_line_mat: ShaderMaterial   # the bottom miss-exit bar (danger_line.gdshader)
-var _center_banner: CenterBanner       # owns the intro/end overlay + its fades
-var _stage_view: StageView             # owns the camera, backdrop, embers, environment
-
 
 func to3d(p: Vector2) -> Vector3:
 	return Vector3((p.x - origin2d.x) * _s, -(p.y - origin2d.y) * _s, 0.0)
+
 
 func to2d(w: Vector3) -> Vector2:
 	return Vector2(w.x / _s + origin2d.x, -w.y / _s + origin2d.y)
 
 
 func _ready() -> void:
-	_s = 1.0 / diameter   # world scale follows the configured sphere size (one cell ≈ 1 m)
+	_s = 1.0 / diameter  # world scale follows the configured sphere size (one cell ≈ 1 m)
 	randomize()
 	_build_visual_assets()
 	# StageView owns the camera, backdrop, embers and environment; it builds the
@@ -164,12 +177,13 @@ func _ready() -> void:
 
 	preview.mesh = _preview_mesh
 	preview.material_override = _preview_mat
-	aim_ray_enabled = Settings.aim_enabled()   # seed from the Gameplay setting; [A] still toggles in-session
-	_aim_active = not shooter.hold_to_fire     # always-on in Click; off until a press in Hold
+	# seed from the Gameplay setting; [A] still toggles in-session
+	aim_ray_enabled = Settings.aim_enabled()
+	_aim_active = not shooter.hold_to_fire  # always-on in Click; off until a press in Hold
 	_update_preview_visibility()
 
 	_build_frame()
-	_stage_view.frame(_frame_bounds(FRAME_THICK))   # outer edge of the frame
+	_stage_view.frame(_frame_bounds(FRAME_THICK))  # outer edge of the frame
 	_stage_view.fit_embers(_frame_bounds(0.0))
 	# Seed an initial aim + trajectory now that the camera is framed, so the gun can
 	# fire and the ray can show before the first _process frame. Afterwards we only
@@ -183,8 +197,16 @@ func _ready() -> void:
 	# Intro/end overlay: hand the banner/lore/panel nodes to CenterBanner, which owns
 	# their fades and wires the choice buttons to GameState.
 	_center_banner = CenterBanner.new()
-	_center_banner.setup(banner_bg, lore_bg, banner_label, lore_label,
-		end_panel, next_button, retry_button, menu_button)
+	_center_banner.setup(
+		banner_bg,
+		lore_bg,
+		banner_label,
+		lore_label,
+		end_panel,
+		next_button,
+		retry_button,
+		menu_button
+	)
 
 	# Danger subsystem: hand the bottom-line bar material (built in _build_frame) and
 	# the red vignette material to a DangerView, which owns the heartbeat + shaders.
@@ -194,19 +216,26 @@ func _ready() -> void:
 	level_name_label.text = _level.title if _level != null else "THE PIT"
 
 	_update_status()
-	_update_heartbeat()   # an authored level could start already close to the line
+	_update_heartbeat()  # an authored level could start already close to the line
 
-	Log.info(Log.PLAY, "level ready", {
-		"mode": "authored" if _level != null else "free",
-		"title": _level.title if _level != null else "THE PIT",
-		"size": "%dx%d" % [columns, rows],
-		"colors": num_colors,
-		"danger_row": danger_row,
-		"colored": model.count_colored(),
-		"true_random": _bag.true_random,
-		"aim": aim_ray_enabled,
-		"hold": shooter.hold_to_fire,
-	})
+	(
+		Log
+		. info(
+			Log.PLAY,
+			"level ready",
+			{
+				"mode": "authored" if _level != null else "free",
+				"title": _level.title if _level != null else "THE PIT",
+				"size": "%dx%d" % [columns, rows],
+				"colors": num_colors,
+				"danger_row": danger_row,
+				"colored": model.count_colored(),
+				"true_random": _bag.true_random,
+				"aim": aim_ray_enabled,
+				"hold": shooter.hold_to_fire,
+			}
+		)
+	)
 
 	if _level != null:
 		_center_banner.show_intro(_level.title, _level.lore_fragment)
@@ -229,11 +258,12 @@ func _process(_delta: float) -> void:
 		# re-aims on the actual shot, so a stale path between events is harmless.
 		_last_sim = sim.simulate(muzzle2d, _aim2d)
 		_aim_dirty = false
-		if preview.visible:   # in Hold the ray is hidden most of the time — skip the rebuild
-			_update_preview(_last_sim.path)
+		if preview.visible:  # in Hold the ray is hidden most of the time — skip the rebuild
+			_update_preview(_last_sim)
 
 
 # --- aim / preview ------------------------------------------------------------
+
 
 func _update_aim() -> void:
 	# Cast the mouse ray onto the board plane (Z=0) and aim from the muzzle to it.
@@ -250,20 +280,84 @@ func _update_aim() -> void:
 	if d.length() < 1.0:
 		return
 	var a := d.normalized()
-	if a.y > -0.12:           # never aim sideways/down
+	if a.y > -0.12:  # never aim sideways/down
 		a.y = -0.12
 		a = a.normalized()
 	_aim2d = a
 
 
-func _update_preview(path2d: PackedVector2Array) -> void:
+func _update_preview(sim_result: Dictionary) -> void:
 	_preview_mesh.clear_surfaces()
+	var path2d: PackedVector2Array = sim_result.get("path", PackedVector2Array())
 	if path2d.size() < 2:
 		return
-	_preview_mesh.surface_begin(Mesh.PRIMITIVE_LINE_STRIP)
-	for p in path2d:
-		_preview_mesh.surface_add_vertex(to3d(p) + Vector3(0, 0, 0.05))  # nudge toward camera
+	_preview_mat.albedo_color = _preview_color()
+	_preview_mesh.surface_begin(Mesh.PRIMITIVE_LINES)
+	if sim_result.get("miss", false):
+		# A miss never settles — dot the whole flight out through the bottom.
+		_emit_dotted_path(path2d)
+	else:
+		# A hit's path ends with the snap from its collision point into the grid cell.
+		# Drop that final "bend" segment and mark the resting place with a dotted ring
+		# instead, so the preview reads as "the bubble will land *here*".
+		_emit_dotted_path(path2d.slice(0, path2d.size() - 1))
+		_emit_dotted_ring(path2d[path2d.size() - 1], diameter * SPHERE_RADIUS * PREVIEW_LAND_SCALE)
 	_preview_mesh.surface_end()
+
+
+## Walk a polyline (logical space) emitting one short segment ("dot") per DOT+GAP
+## cycle. `s` is the arc length from the start, kept continuous across segments so the
+## dot/gap rhythm never resets (or skips a beat) at a corner. Surface must be open.
+func _emit_dotted_path(points: PackedVector2Array) -> void:
+	var cycle: float = PREVIEW_DOT + PREVIEW_GAP
+	var s := 0.0
+	for i in range(points.size() - 1):
+		var a: Vector2 = points[i]
+		var b: Vector2 = points[i + 1]
+		var seg := b - a
+		var seg_len := seg.length()
+		if seg_len < 0.0001:
+			continue
+		var dir := seg / seg_len
+		var local := 0.0  # distance walked within this segment
+		while local < seg_len:
+			var into := fmod(s + local, cycle)  # position within the current dot's cycle
+			if into < PREVIEW_DOT:
+				var run: float = minf(PREVIEW_DOT - into, seg_len - local)  # rest of this dot on this segment
+				_add_preview_dot(a + dir * local, a + dir * (local + run))
+				local += run
+			else:
+				local += cycle - into  # inside the gap: jump to the next dot
+		s += seg_len
+
+
+## A dotted ring at `center` (logical space) marking where a hit will settle. Built as
+## a fine closed polyline so the same dot walk renders evenly spaced dots around it.
+func _emit_dotted_ring(center: Vector2, radius: float) -> void:
+	var ring := PackedVector2Array()
+	ring.resize(PREVIEW_RING_SEGMENTS + 1)
+	for i in range(PREVIEW_RING_SEGMENTS + 1):
+		var ang := TAU * float(i) / float(PREVIEW_RING_SEGMENTS)
+		ring[i] = center + Vector2(cos(ang), sin(ang)) * radius
+	_emit_dotted_path(ring)
+
+
+## Emit one dotted segment, nudged slightly toward the camera so it floats just in
+## front of the board plane rather than z-fighting the spheres.
+func _add_preview_dot(p0: Vector2, p1: Vector2) -> void:
+	_preview_mesh.surface_add_vertex(to3d(p0) + Vector3(0, 0, 0.05))
+	_preview_mesh.surface_add_vertex(to3d(p1) + Vector3(0, 0, 0.05))
+
+
+## The aim ray's colour: the loaded (muzzle) sphere's palette colour, lifted slightly
+## toward white so the darker, saturated colours still read against the abyss, at the
+## fixed dot opacity.
+func _preview_color() -> Color:
+	var pal := BoardView3D.PALETTE
+	var c: Color = pal[shooter.current_color % pal.size()]
+	c = c.lerp(Color.WHITE, 0.25)
+	c.a = PREVIEW_ALPHA
+	return c
 
 
 ## The single source of truth for the aim ray's visibility: the master "Enable aim"
@@ -273,7 +367,7 @@ func _update_preview(path2d: PackedVector2Array) -> void:
 func _update_preview_visibility() -> void:
 	preview.visible = aim_ray_enabled and _aim_active and not game_over
 	if preview.visible:
-		_aim_dirty = true   # rebuild the ray mesh from a fresh sim now that it shows
+		_aim_dirty = true  # rebuild the ray mesh from a fresh sim now that it shows
 
 
 ## Hold scheme: the fire button went down (active) or up (inactive). Drives the ray so
@@ -284,6 +378,7 @@ func _on_aim_active_changed(active: bool) -> void:
 
 
 # --- setup helpers ------------------------------------------------------------
+
 
 func _build_visual_assets() -> void:
 	# Mesh + materials are pure resources; SphereAssets owns their construction.
@@ -337,7 +432,7 @@ func _input(event: InputEvent) -> void:
 		GameState.go_to_level_select()
 	elif event.is_action_pressed("toggle_aim"):
 		aim_ray_enabled = not aim_ray_enabled
-		_update_preview_visibility()   # in Hold mode, still only shows while the button is held
+		_update_preview_visibility()  # in Hold mode, still only shows while the button is held
 
 
 ## Roll a random field size within the configured ranges and derive every logical
@@ -388,6 +483,7 @@ func _mat_for(color: int) -> Material:
 
 # --- shot results -------------------------------------------------------------
 
+
 ## `reaim` recomputes the aim against the live pointer at the instant of firing. The
 ## `fired` signal carries no args, so a real shot uses the default (true): in Hold a fast
 ## press+release can land between _process frames, leaving _aim2d stale; in Click _process
@@ -400,15 +496,22 @@ func _on_fired(reaim := true) -> void:
 		_update_aim()
 		_last_sim = sim.simulate(muzzle2d, _aim2d)
 	var is_miss: bool = _last_sim.get("miss", false)
-	Log.debug(Log.SHOT, "fire", {
-		"n": _shots_fired + 1,
-		"color": shooter.current_color,
-		"aim": _aim2d,
-		"result": "miss" if is_miss else "hit",
-		"cell": null if is_miss else _last_sim.cell,
-	})
+	(
+		Log
+		. debug(
+			Log.SHOT,
+			"fire",
+			{
+				"n": _shots_fired + 1,
+				"color": shooter.current_color,
+				"aim": _aim2d,
+				"result": "miss" if is_miss else "hit",
+				"cell": null if is_miss else _last_sim.cell,
+			}
+		)
+	)
 	_shots_fired += 1
-	_update_status()   # the shots tally ticks the moment the gun fires
+	_update_status()  # the shots tally ticks the moment the gun fires
 	shooter.enabled = false
 	var proj := Projectile3D.new()
 	proj.setup(_mesh, _mat_for(shooter.current_color))
@@ -438,23 +541,31 @@ func _on_landed(cell: Vector2i, color: int) -> void:
 		model.grow()
 	# On a pop, ripple the clear outward from the impact cell; on a dud the grown
 	# spheres just animate in (no removals, so pop_origin is irrelevant).
-	var settle := board.sync([cell], cell)   # the landed sphere appears full-size
+	var settle := board.sync([cell], cell)  # the landed sphere appears full-size
 	_validate_load()
 	# Board is now in its final post-resolution state; scan it once and share the
 	# counts with the log, the HUD, and the heartbeat instead of rescanning thrice.
 	var colored := model.count_colored()
 	var deepest := model.max_row()
-	Log.debug(Log.MODEL, "attach", {
-		"cell": cell,
-		"color": color,
-		"pop": res.did_pop,
-		"popped": res.popped.size(),
-		"orphaned": res.orphaned.size(),
-		"colored": colored,
-		"max_row": deepest,
-	})
+	(
+		Log
+		. debug(
+			Log.MODEL,
+			"attach",
+			{
+				"cell": cell,
+				"color": color,
+				"pop": res.did_pop,
+				"popped": res.popped.size(),
+				"orphaned": res.orphaned.size(),
+				"colored": colored,
+				"max_row": deepest,
+			}
+		)
+	)
 	_update_status(colored)
-	_update_heartbeat(model.danger_row - deepest)   # a grow may have closed on the line; a pop may have backed off it
+	# a grow may have closed on the line; a pop may have backed off it
+	_update_heartbeat(model.danger_row - deepest)
 	# Hold the verdict until the board has visually settled — the win banner must
 	# not appear while the last cluster is still popping.
 	if model.is_won() or model.is_lost():
@@ -463,14 +574,14 @@ func _on_landed(cell: Vector2i, color: int) -> void:
 			return
 		_check_end()
 		return
-	_aim_dirty = true   # the board changed; the cached trajectory must be refreshed
+	_aim_dirty = true  # the board changed; the cached trajectory must be refreshed
 	shooter.enabled = true
 
 
 func _on_missed() -> void:
 	Log.debug(Log.SHOT, "miss reshuffle", {"colored": model.count_colored()})
 	model.randomize_colors()
-	board.sync()   # reshuffle only recolours; spheres stay, materials swap in place
+	board.sync()  # reshuffle only recolours; spheres stay, materials swap in place
 	_validate_load()
 	shooter.enabled = true
 	_update_status()
@@ -497,7 +608,6 @@ func _validate_load() -> void:
 
 # --- danger heartbeat ---------------------------------------------------------
 
-const ROWS_TO_DANGER_UNSET := 0x7fffffff   # "not supplied" sentinel for _update_heartbeat
 
 ## Forward the field's proximity to the lose line to the DangerView, which owns the
 ## tier logic + audio/visual escalation. Called after every shot and at game end.
@@ -511,6 +621,7 @@ func _update_heartbeat(rows_left: int = ROWS_TO_DANGER_UNSET) -> void:
 
 # --- end state ----------------------------------------------------------------
 
+
 func _check_end() -> void:
 	if model.is_won():
 		_end("THE FIELD IS STILL.\nYou survive.", true)
@@ -520,16 +631,23 @@ func _check_end() -> void:
 
 func _end(msg: String, won: bool) -> void:
 	game_over = true
-	Log.info(Log.PLAY, "level end", {
-		"won": won,
-		"shots": _shots_fired,
-		"colored": model.count_colored(),
-		"max_row": model.max_row(),
-	})
+	(
+		Log
+		. info(
+			Log.PLAY,
+			"level end",
+			{
+				"won": won,
+				"shots": _shots_fired,
+				"colored": model.count_colored(),
+				"max_row": model.max_row(),
+			}
+		)
+	)
 	shooter.enabled = false
-	_update_heartbeat()   # game_over now true -> both pulses fade out (cleared or consumed)
+	_update_heartbeat()  # game_over now true -> both pulses fade out (cleared or consumed)
 	_preview_mesh.clear_surfaces()
-	_update_preview_visibility()   # hide the ray at once, even if a finger is still down (Hold)
+	_update_preview_visibility()  # hide the ray at once, even if a finger is still down (Hold)
 	if won and _level != null:
 		GameState.complete_current()
 	# The visual verdict + choice panel are the CenterBanner's job; we just decide
@@ -553,10 +671,11 @@ func _update_status(colored: int = -1) -> void:
 
 # --- dev autoplay -------------------------------------------------------------
 
+
 func _auto_step() -> void:
 	if game_over or not shooter.enabled:
 		return
 	var dirs := [Vector2(0, -1), Vector2(0.45, -1).normalized(), Vector2(-0.5, -1).normalized()]
 	_aim2d = dirs[randi() % dirs.size()]
 	_last_sim = sim.simulate(muzzle2d, _aim2d)
-	_on_fired(false)   # keep the canned direction; don't re-aim to the (absent) mouse
+	_on_fired(false)  # keep the canned direction; don't re-aim to the (absent) mouse

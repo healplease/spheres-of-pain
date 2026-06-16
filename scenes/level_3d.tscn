@@ -1,20 +1,51 @@
-[gd_scene load_steps=25 format=3 uid="uid://bhb1b4x61mt0"]
+[gd_scene format=3 uid="uid://bhb1b4x61mt0"]
 
 [ext_resource type="Script" uid="uid://djqufidh5xj6w" path="res://scripts/play3d/level_controller_3d.gd" id="1_ctrl"]
 [ext_resource type="Script" uid="uid://iqjmc6ome2v" path="res://scripts/play3d/board_view_3d.gd" id="2_board"]
 [ext_resource type="Script" uid="uid://5vrvar2kdqo4" path="res://scripts/play3d/shooter_3d.gd" id="3_shoot"]
-[ext_resource type="Shader" path="res://shaders/abyss_backdrop.gdshader" id="4_abyss"]
-[ext_resource type="Shader" path="res://shaders/dread_overlay.gdshader" id="5_dread"]
-[ext_resource type="Shader" path="res://shaders/title_shiver.gdshader" id="6_title"]
-[ext_resource type="Shader" path="res://shaders/danger_vignette.gdshader" id="7_dvig"]
-[ext_resource type="Shader" path="res://shaders/text_backdrop.gdshader" id="8_tback"]
-[ext_resource type="Texture2D" path="res://art/door_icon.svg" id="9_door"]
+[ext_resource type="Shader" uid="uid://bt5b5bjvqq87v" path="res://shaders/abyss_backdrop.gdshader" id="4_abyss"]
+[ext_resource type="Shader" uid="uid://djmrtvfc8sqao" path="res://shaders/dread_overlay.gdshader" id="5_dread"]
+[ext_resource type="Shader" uid="uid://b3pwdpomy4tyk" path="res://shaders/title_shiver.gdshader" id="6_title"]
+[ext_resource type="Shader" uid="uid://d3u54xc7ot310" path="res://shaders/danger_vignette.gdshader" id="7_dvig"]
+[ext_resource type="Shader" uid="uid://d1g1x3yg3nq7a" path="res://shaders/text_backdrop.gdshader" id="8_tback"]
+[ext_resource type="Texture2D" uid="uid://dkyju78b0asy4" path="res://art/door_icon.svg" id="9_door"]
 
 [sub_resource type="ShaderMaterial" id="ShaderMaterial_abyss"]
+render_priority = 0
 shader = ExtResource("4_abyss")
+shader_parameter/noise_scale = 0.12
+shader_parameter/drift_speed = 0.015
+shader_parameter/pan_speed = 0.004
+shader_parameter/warp_strength = 1.6
+shader_parameter/brightness = 1.0
+shader_parameter/base_color = Color(0.012, 0.012, 0.02, 1)
+shader_parameter/violet = Color(0.1, 0.05, 0.17, 1)
+shader_parameter/teal = Color(0.03, 0.1, 0.11, 1)
 
 [sub_resource type="QuadMesh" id="QuadMesh_backdrop"]
 size = Vector2(2, 2)
+
+[sub_resource type="Gradient" id="Gradient_emberlife"]
+offsets = PackedFloat32Array(0, 0.15, 0.85, 1)
+colors = PackedColorArray(1, 1, 1, 0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0)
+
+[sub_resource type="GradientTexture1D" id="GradTex_emberlife"]
+gradient = SubResource("Gradient_emberlife")
+
+[sub_resource type="ParticleProcessMaterial" id="PPM_embers"]
+lifetime_randomness = 0.4
+emission_shape = 3
+emission_box_extents = Vector3(10, 8, 1.5)
+direction = Vector3(0, 1, 0)
+spread = 180.0
+initial_velocity_min = 0.02
+initial_velocity_max = 0.1
+gravity = Vector3(0, 0.04, 0)
+scale_min = 0.4
+color_ramp = SubResource("GradTex_emberlife")
+turbulence_enabled = true
+turbulence_noise_strength = 0.2
+turbulence_noise_scale = 1.5
 
 [sub_resource type="Gradient" id="Gradient_emberdot"]
 offsets = PackedFloat32Array(0, 0.35, 1)
@@ -34,32 +65,12 @@ blend_mode = 1
 shading_mode = 0
 albedo_color = Color(1, 0.62, 0.3, 0.55)
 albedo_texture = SubResource("GradTex_emberdot")
+disable_receive_shadows = true
 billboard_mode = 3
 billboard_keep_scale = true
-disable_receive_shadows = true
-
-[sub_resource type="Gradient" id="Gradient_emberlife"]
-offsets = PackedFloat32Array(0, 0.15, 0.85, 1)
-colors = PackedColorArray(1, 1, 1, 0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0)
-
-[sub_resource type="GradientTexture1D" id="GradTex_emberlife"]
-gradient = SubResource("Gradient_emberlife")
-
-[sub_resource type="ParticleProcessMaterial" id="PPM_embers"]
-lifetime_randomness = 0.4
-emission_shape = 3
-emission_box_extents = Vector3(10, 8, 1.5)
-direction = Vector3(0, 1, 0)
-spread = 180.0
-initial_velocity_min = 0.02
-initial_velocity_max = 0.1
-gravity = Vector3(0, 0.04, 0)
-scale_min = 0.4
-scale_max = 1.0
-color_ramp = SubResource("GradTex_emberlife")
-turbulence_enabled = true
-turbulence_noise_strength = 0.2
-turbulence_noise_scale = 1.5
+particles_anim_h_frames = 1
+particles_anim_v_frames = 1
+particles_anim_loop = false
 
 [sub_resource type="QuadMesh" id="QuadMesh_ember"]
 material = SubResource("Mat_ember")
@@ -67,23 +78,56 @@ size = Vector2(0.07, 0.07)
 
 [sub_resource type="ShaderMaterial" id="ShaderMaterial_dread"]
 shader = ExtResource("5_dread")
+shader_parameter/vignette_strength = 0.38
+shader_parameter/vignette_radius = 0.75
+shader_parameter/grain_amount = 0.035
+shader_parameter/aberration = 0.006
+shader_parameter/glitch_strength = 0.0
+shader_parameter/glitch_period = 60.0
+shader_parameter/glitch_len = 0.22
 
 [sub_resource type="ShaderMaterial" id="SM_dvig"]
 shader = ExtResource("7_dvig")
+shader_parameter/danger_color = Color(0.62, 0.02, 0.03, 1)
 shader_parameter/intensity = 0.0
+shader_parameter/edge = 0.62
+shader_parameter/phase = 0.0
+shader_parameter/pulse_depth = 0.45
+shader_parameter/scale = 3.0
+shader_parameter/drift = 0.06
 
 [sub_resource type="ShaderMaterial" id="SM_tback"]
 shader = ExtResource("8_tback")
-
-[sub_resource type="ShaderMaterial" id="SM_tback_lore"]
-shader = ExtResource("8_tback")
+shader_parameter/bar_color = Color(0, 0, 0, 0.8)
+shader_parameter/soft_x = 0.32
+shader_parameter/soft_y = 0.45
 
 [sub_resource type="ShaderMaterial" id="SM_banner"]
 shader = ExtResource("6_title")
+shader_parameter/interval = 15.0
+shader_parameter/shiver_len = 1.5
+shader_parameter/amplitude = 2.0
+shader_parameter/speed = 70.0
+shader_parameter/ab_interval = 11.0
+shader_parameter/ab_len = 0.55
+shader_parameter/ab_strength = 2.5
 shader_parameter/seed = 3.7
+
+[sub_resource type="ShaderMaterial" id="SM_tback_lore"]
+shader = ExtResource("8_tback")
+shader_parameter/bar_color = Color(0, 0, 0, 0.8)
+shader_parameter/soft_x = 0.32
+shader_parameter/soft_y = 0.45
 
 [sub_resource type="ShaderMaterial" id="SM_hud_title"]
 shader = ExtResource("6_title")
+shader_parameter/interval = 15.0
+shader_parameter/shiver_len = 1.5
+shader_parameter/amplitude = 2.0
+shader_parameter/speed = 70.0
+shader_parameter/ab_interval = 11.0
+shader_parameter/ab_len = 0.55
+shader_parameter/ab_strength = 2.5
 shader_parameter/seed = 1.3
 
 [node name="Level3D" type="Node3D" unique_id=1146993431]
@@ -95,12 +139,12 @@ script = ExtResource("1_ctrl")
 
 [node name="Camera3D" type="Camera3D" parent="." unique_id=937805124]
 
-[node name="Backdrop" type="MeshInstance3D" parent="."]
-mesh = SubResource("QuadMesh_backdrop")
-cast_shadow = 0
+[node name="Backdrop" type="MeshInstance3D" parent="." unique_id=315210792]
 material_override = SubResource("ShaderMaterial_abyss")
+cast_shadow = 0
+mesh = SubResource("QuadMesh_backdrop")
 
-[node name="Embers" type="GPUParticles3D" parent="."]
+[node name="Embers" type="GPUParticles3D" parent="." unique_id=371895347]
 amount = 200
 lifetime = 12.0
 preprocess = 12.0
@@ -115,10 +159,10 @@ script = ExtResource("3_shoot")
 
 [node name="Preview" type="MeshInstance3D" parent="." unique_id=997055303]
 
-[node name="Dread" type="CanvasLayer" parent="."]
+[node name="Dread" type="CanvasLayer" parent="." unique_id=2129774928]
 layer = 0
 
-[node name="Overlay" type="ColorRect" parent="Dread"]
+[node name="Overlay" type="ColorRect" parent="Dread" unique_id=23013839]
 material = SubResource("ShaderMaterial_dread")
 anchors_preset = 15
 anchor_right = 1.0
@@ -127,7 +171,7 @@ grow_horizontal = 2
 grow_vertical = 2
 mouse_filter = 2
 
-[node name="DangerVignette" type="ColorRect" parent="Dread"]
+[node name="DangerVignette" type="ColorRect" parent="Dread" unique_id=28253594]
 material = SubResource("SM_dvig")
 anchors_preset = 15
 anchor_right = 1.0
@@ -139,10 +183,9 @@ color = Color(0, 0, 0, 1)
 
 [node name="Ui" type="CanvasLayer" parent="." unique_id=1700756708]
 
-[node name="BannerBg" type="ColorRect" parent="Ui"]
+[node name="BannerBg" type="ColorRect" parent="Ui" unique_id=7196486]
 visible = false
 material = SubResource("SM_tback")
-offset_left = 0.0
 offset_top = 260.0
 offset_right = 1280.0
 offset_bottom = 370.0
@@ -150,28 +193,27 @@ mouse_filter = 2
 color = Color(0, 0, 0, 1)
 
 [node name="Banner" type="Label" parent="Ui" unique_id=1120620941]
-theme_type_variation = &"TitleText"
 visible = false
 material = SubResource("SM_banner")
 offset_top = 230.0
 offset_right = 1280.0
 offset_bottom = 400.0
+theme_type_variation = &"TitleText"
 theme_override_constants/line_spacing = 10
 theme_override_font_sizes/font_size = 56
 horizontal_alignment = 1
 vertical_alignment = 1
 
-[node name="LoreBg" type="ColorRect" parent="Ui"]
+[node name="LoreBg" type="ColorRect" parent="Ui" unique_id=2051595946]
 visible = false
 material = SubResource("SM_tback_lore")
-offset_left = 0.0
 offset_top = 430.0
 offset_right = 1280.0
 offset_bottom = 474.0
 mouse_filter = 2
 color = Color(0, 0, 0, 1)
 
-[node name="Lore" type="Label" parent="Ui"]
+[node name="Lore" type="Label" parent="Ui" unique_id=136474334]
 visible = false
 offset_top = 428.0
 offset_right = 1280.0
@@ -192,12 +234,12 @@ theme_override_font_sizes/font_size = 20
 text = "Spheres  --
 Shots  0"
 
-[node name="LevelName" type="Label" parent="Ui"]
-theme_type_variation = &"TitleText"
+[node name="LevelName" type="Label" parent="Ui" unique_id=1362701832]
 material = SubResource("SM_hud_title")
 offset_top = 12.0
 offset_right = 1280.0
 offset_bottom = 56.0
+theme_type_variation = &"TitleText"
 theme_override_colors/font_color = Color(0.78, 0.72, 0.65, 1)
 theme_override_colors/font_shadow_color = Color(0.35, 0.05, 0.06, 0.6)
 theme_override_constants/shadow_offset_x = 0
@@ -206,7 +248,8 @@ theme_override_font_sizes/font_size = 30
 horizontal_alignment = 1
 vertical_alignment = 1
 
-[node name="DoorButton" type="Button" parent="Ui"]
+[node name="DoorButton" type="Button" parent="Ui" unique_id=427200377]
+anchors_preset = 1
 anchor_left = 1.0
 anchor_right = 1.0
 offset_left = -72.0
@@ -218,7 +261,7 @@ tooltip_text = "Leave to level select (Esc)"
 icon = ExtResource("9_door")
 expand_icon = true
 
-[node name="EndPanel" type="VBoxContainer" parent="Ui"]
+[node name="EndPanel" type="VBoxContainer" parent="Ui" unique_id=399240836]
 visible = false
 anchors_preset = 8
 anchor_left = 0.5
@@ -233,19 +276,19 @@ grow_horizontal = 2
 grow_vertical = 2
 theme_override_constants/separation = 16
 
-[node name="NextButton" type="Button" parent="Ui/EndPanel"]
+[node name="NextButton" type="Button" parent="Ui/EndPanel" unique_id=1148228851]
 custom_minimum_size = Vector2(340, 52)
 layout_mode = 2
 theme_override_font_sizes/font_size = 22
 text = "DESCEND FURTHER"
 
-[node name="RetryButton" type="Button" parent="Ui/EndPanel"]
+[node name="RetryButton" type="Button" parent="Ui/EndPanel" unique_id=463092123]
 custom_minimum_size = Vector2(340, 52)
 layout_mode = 2
 theme_override_font_sizes/font_size = 22
 text = "TRY AGAIN"
 
-[node name="MenuButton" type="Button" parent="Ui/EndPanel"]
+[node name="MenuButton" type="Button" parent="Ui/EndPanel" unique_id=934979134]
 custom_minimum_size = Vector2(340, 52)
 layout_mode = 2
 theme_override_font_sizes/font_size = 22
