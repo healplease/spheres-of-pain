@@ -4,14 +4,14 @@ extends Node
 ## level, and unlock progress. All navigation between menu / level select / play
 ## goes through here so no scene hardcodes another scene's path.
 
-const LEVEL_COUNT := 10
+const LEVEL_COUNT := 15
 const MAIN_MENU_SCENE := "res://scenes/main_menu.tscn"
 const LEVEL_SELECT_SCENE := "res://scenes/level_select.tscn"
 const SETTINGS_SCENE := "res://scenes/settings.tscn"
 const PLAY_SCENE := "res://scenes/level_3d.tscn"
 
 var progress := ProgressStore.new()
-var selected_index: int = -1            # -1 = free play (random board)
+var selected_index: int = -1  # -1 = free play (random board)
 var selected_level: LevelResource = null
 ## False until the main menu has played its startup intro once. Lives here (not in
 ## the menu) because the menu scene is reloaded on every return — this autoload
@@ -66,8 +66,11 @@ func start_next() -> void:
 func complete_current() -> void:
 	if selected_index > 0:
 		progress.mark_completed(selected_index)
-		Log.info(Log.FLOW, "level completed", {
-			"index": selected_index, "unlocked_through": progress.highest_unlocked})
+		Log.info(
+			Log.FLOW,
+			"level completed",
+			{"index": selected_index, "unlocked_through": progress.highest_unlocked}
+		)
 
 
 func go_to_main_menu() -> void:

@@ -12,10 +12,10 @@ const FADE_OUT_TIME := 0.7
 # Soft black backdrop behind the centre text: the bar hugs each line's measured text
 # height with this much vertical margin above and below, and fades out over exactly
 # that margin (so the text sits on solid black, symmetric top and bottom).
-const TEXT_BG_PAD_Y := 16.0        # tagline (small font)
-const TITLE_BG_PAD_Y := 54.0       # title / verdict (large font)
-const BANNER_PALE := Color(0.82, 0.78, 0.72, 1.0)   # intro / win verdict colour
-const BANNER_RED := Color(0.86, 0.13, 0.12, 1.0)    # lose verdict colour
+const TEXT_BG_PAD_Y := 16.0  # tagline (small font)
+const TITLE_BG_PAD_Y := 54.0  # title / verdict (large font)
+const BANNER_PALE := Color(0.82, 0.78, 0.72, 1.0)  # intro / win verdict colour
+const BANNER_RED := Color(0.86, 0.13, 0.12, 1.0)  # lose verdict colour
 
 var _banner_bg: ColorRect
 var _lore_bg: ColorRect
@@ -25,11 +25,19 @@ var _end_panel: Control
 var _next_button: Button
 var _retry_button: Button
 var _menu_button: Button
-var _ended := false   # once the verdict shows, a late intro fade-out must not run
+var _ended := false  # once the verdict shows, a late intro fade-out must not run
 
 
-func setup(banner_bg: ColorRect, lore_bg: ColorRect, banner_label: Label, lore_label: Label,
-		end_panel: Control, next_button: Button, retry_button: Button, menu_button: Button) -> void:
+func setup(
+	banner_bg: ColorRect,
+	lore_bg: ColorRect,
+	banner_label: Label,
+	lore_label: Label,
+	end_panel: Control,
+	next_button: Button,
+	retry_button: Button,
+	menu_button: Button
+) -> void:
 	_banner_bg = banner_bg
 	_lore_bg = lore_bg
 	_banner_label = banner_label
@@ -102,6 +110,7 @@ func show_end(msg: String, won: bool, show_next: bool, show_retry: bool) -> void
 
 # --- ui fades -----------------------------------------------------------------
 
+
 ## Show `ctrl` by fading its modulate alpha up from zero (after `delay`). Any fade
 ## already running on it is killed first, so rapid transitions (intro fade-out
 ## interrupted by the end banner) can't stack.
@@ -121,9 +130,11 @@ func _fade_out(ctrl: CanvasItem, dur: float) -> void:
 	_kill_fade(ctrl)
 	var tw := ctrl.create_tween()
 	tw.tween_property(ctrl, "modulate:a", 0.0, dur)
-	tw.tween_callback(func () -> void:
-		ctrl.visible = false
-		ctrl.modulate.a = 1.0)
+	tw.tween_callback(
+		func() -> void:
+			ctrl.visible = false
+			ctrl.modulate.a = 1.0
+	)
 	ctrl.set_meta("fade_tween", tw)
 
 
@@ -154,4 +165,4 @@ func _size_text_backdrop(bg: ColorRect, label: Label, pad_y: float) -> void:
 	bg.offset_bottom = center_y + h * 0.5
 	var mat := bg.material as ShaderMaterial
 	if mat != null:
-		mat.set_shader_parameter("soft_y", pad_y / h)   # fade out over the pad only
+		mat.set_shader_parameter("soft_y", pad_y / h)  # fade out over the pad only

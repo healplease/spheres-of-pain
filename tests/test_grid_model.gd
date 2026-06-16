@@ -1,3 +1,5 @@
+# gdlint:disable=max-public-methods
+# ^ GUT: one public test_* method per case is the pattern
 extends GutTest
 
 ## Unit tests for the rules core (GridModel + Hex). Run via GUT:
@@ -14,6 +16,7 @@ func _make_model() -> GridModel:
 
 
 # --- hex geometry -------------------------------------------------------------
+
 
 func test_even_row_has_six_neighbors() -> void:
 	assert_eq(Hex.neighbors(Vector2i(2, 0)).size(), 6)
@@ -32,10 +35,15 @@ func test_world_cell_roundtrip() -> void:
 	var origin := Vector2(100, 80)
 	var d := 64.0
 	for cell in [Vector2i(0, 0), Vector2i(3, 4), Vector2i(5, 7), Vector2i(2, 11)]:
-		assert_eq(Hex.world_to_cell(Hex.cell_to_world(cell, origin, d), origin, d), cell, "roundtrip %s" % cell)
+		assert_eq(
+			Hex.world_to_cell(Hex.cell_to_world(cell, origin, d), origin, d),
+			cell,
+			"roundtrip %s" % cell
+		)
 
 
 # --- match / pop --------------------------------------------------------------
+
 
 func test_match_pops_three() -> void:
 	var m := _make_model()
@@ -56,6 +64,7 @@ func test_dud_does_not_pop() -> void:
 
 
 # --- orphans ------------------------------------------------------------------
+
 
 func test_find_orphans_only_lone_sphere() -> void:
 	var m := _make_model()
@@ -97,14 +106,181 @@ func test_attach_sweeps_orphans_after_pop() -> void:
 
 # --- black --------------------------------------------------------------------
 
+
 func test_black_never_matches() -> void:
 	var m := _make_model()
-	m.cells = {Vector2i(0, 0): GridModel.BLACK, Vector2i(1, 0): GridModel.BLACK, Vector2i(2, 0): GridModel.BLACK}
+	m.cells = {
+		Vector2i(0, 0): GridModel.BLACK,
+		Vector2i(1, 0): GridModel.BLACK,
+		Vector2i(2, 0): GridModel.BLACK
+	}
 	assert_true(m.match_group(Vector2i(0, 0)).is_empty(), "black forms no match group")
 	assert_eq(m.count_colored(), 0, "black spheres are not counted as colour")
 
 
+# --- spin / bounce: indestructible, like black --------------------------------
+# Both new types are sentinels < 0, so every "indestructible" rule (match, orphan,
+# grow, randomize, win) must treat them exactly as it treats BLACK.
+
+
+func test_specials_never_match_and_not_counted() -> void:
+	for special in [GridModel.SPIN, GridModel.BOUNCE]:
+		var m := _make_model()
+		m.cells = {Vector2i(0, 0): special, Vector2i(1, 0): special, Vector2i(2, 0): special}
+		assert_true(m.match_group(Vector2i(0, 0)).is_empty(), "special %d forms no match" % special)
+		assert_eq(m.count_colored(), 0, "special %d not counted as colour" % special)
+		assert_true(m.present_colors().is_empty(), "special %d not a queueable colour" % special)
+
+
+func test_specials_never_orphaned_but_anchor_neighbours() -> void:
+	for special in [GridModel.SPIN, GridModel.BOUNCE]:
+		var m := _make_model()
+		# Lone special stays; a breakable touching it is anchored; a far breakable is swept.
+		m.cells = {Vector2i(0, 0): special, Vector2i(1, 0): 1, Vector2i(5, 5): 2}
+		var orph := m.find_orphans()
+		assert_does_not_have(orph, Vector2i(0, 0), "isolated special %d never orphaned" % special)
+		assert_does_not_have(orph, Vector2i(1, 0), "sphere touching special %d anchored" % special)
+		assert_has(orph, Vector2i(5, 5), "lone breakable still orphaned (special %d)" % special)
+
+
+func test_specials_survive_randomize() -> void:
+	for special in [GridModel.SPIN, GridModel.BOUNCE]:
+		var m := _make_model()
+		m.cells = {Vector2i(0, 0): 0, Vector2i(1, 0): special}
+		m.randomize_colors()
+		assert_eq(m.cells[Vector2i(1, 0)], special, "special %d survives randomize" % special)
+
+
+func test_specials_not_seeded_by_growth() -> void:
+	for special in [GridModel.SPIN, GridModel.BOUNCE]:
+		var m := _make_model()
+		m.cells = {Vector2i(2, 2): special}  # only a special on the board
+		m.grow()
+		assert_eq(m.cells.size(), 1, "a lone special %d seeds no growth" % special)
+
+
+func test_won_when_only_specials_remain() -> void:
+	var m := _make_model()
+	m.cells = {
+		Vector2i(0, 0): GridModel.SPIN,
+		Vector2i(1, 0): GridModel.BOUNCE,
+		Vector2i(2, 0): GridModel.BLACK
+	}
+	assert_true(m.is_won(), "no colour left -> won, even with spin/bounce/black standing")
+
+
+func test_max_row_counts_specials() -> void:
+	var m := _make_model()
+	m.cells = {
+		Vector2i(0, 4): 0, Vector2i(1, 10): GridModel.SPIN, Vector2i(2, 11): GridModel.BOUNCE
+	}
+	assert_eq(m.max_row(), 11, "specials sink toward the danger line like any sphere")
+
+
+# --- spin rotation ------------------------------------------------------------
+
+
+func test_spin_rotates_neighbours_counter_clockwise() -> void:
+	var m := _make_model()
+	m.num_colors = 6
+	var spin := Vector2i(2, 2)  # even row
+	# Fill all six neighbours (DIRS[0] order) with distinct colours, then rotate.
+	var dirs: Array = Hex.DIRS[0]
+	var cols := [0, 1, 2, 3, 4, 5]
+	m.cells[spin] = GridModel.SPIN
+	for i in range(6):
+		m.cells[spin + dirs[i]] = cols[i]
+	var changed := m.spin_step()
+	# Each neighbour receives the colour of the previous (clockwise) slot: the colour
+	# at slot i moves forward to slot i+1, i.e. one step counter-clockwise on screen.
+	for i in range(6):
+		var expected: int = cols[(i - 1 + 6) % 6]
+		assert_eq(m.cells[spin + dirs[i]], expected, "slot %d rotated CCW" % i)
+	assert_eq(m.cells[spin], GridModel.SPIN, "the spin sphere itself is unchanged")
+	assert_eq(changed.size(), 6, "all six neighbours reported as changed")
+
+
+func test_spin_parity_consistent() -> void:
+	# The same physical move (East colour travels to the up-right neighbour) must hold
+	# whether the spin sits on an even or an odd row.
+	for spin in [Vector2i(2, 2), Vector2i(2, 3)]:
+		var m := _make_model()
+		m.num_colors = 6
+		var dirs: Array = Hex.DIRS[spin.y & 1]
+		m.cells[spin] = GridModel.SPIN
+		for i in range(6):
+			m.cells[spin + dirs[i]] = i  # slot index as colour
+		m.spin_step()
+		# dirs[0] is East, dirs[1] is up-right; East's colour (0) lands on up-right.
+		assert_eq(m.cells[spin + dirs[1]], 0, "East colour moved to up-right (spin at %s)" % spin)
+
+
+func test_spin_only_rotates_coloured_neighbours() -> void:
+	var m := _make_model()
+	var spin := Vector2i(2, 2)
+	var dirs: Array = Hex.DIRS[0]
+	m.cells[spin] = GridModel.SPIN
+	m.cells[spin + dirs[0]] = 1  # E: colour
+	m.cells[spin + dirs[1]] = GridModel.BLACK  # up-right: indestructible, skipped
+	m.cells[spin + dirs[3]] = 2  # W: colour
+	m.spin_step()
+	# Only the two coloured neighbours form the ring; they swap (a 2-cycle).
+	assert_eq(m.cells[spin + dirs[0]], 2, "E took W's colour")
+	assert_eq(m.cells[spin + dirs[3]], 1, "W took E's colour")
+	assert_eq(m.cells[spin + dirs[1]], GridModel.BLACK, "black neighbour untouched")
+
+
+func test_spin_noop_with_one_coloured_neighbour() -> void:
+	var m := _make_model()
+	var spin := Vector2i(2, 2)
+	m.cells = {spin: GridModel.SPIN, spin + Hex.DIRS[0][0]: 3}
+	var changed := m.spin_step()
+	assert_true(changed.is_empty(), "a single coloured neighbour has nothing to rotate")
+	assert_eq(m.cells[spin + Hex.DIRS[0][0]], 3, "lone neighbour colour unchanged")
+
+
+func test_spin_preserves_colour_count() -> void:
+	var m := _make_model()
+	m.num_colors = 6
+	var spin := Vector2i(2, 2)
+	for i in range(6):
+		m.cells[spin + Hex.DIRS[0][i]] = i % 4
+	m.cells[spin] = GridModel.SPIN
+	var before := m.count_colored()
+	m.spin_step()
+	assert_eq(m.count_colored(), before, "spin only moves colours, never adds or removes")
+
+
+func _spin_conflict_board() -> GridModel:
+	# Two spins that share the neighbour (3, 2), plus a colour around each.
+	var m := _make_model()
+	m.num_colors = 6
+	m.cells = {
+		Vector2i(2, 2): GridModel.SPIN,
+		Vector2i(4, 2): GridModel.SPIN,
+		Vector2i(3, 2): 0,
+		Vector2i(2, 1): 1,
+		Vector2i(1, 2): 2,
+		Vector2i(5, 2): 3,
+		Vector2i(4, 1): 4,
+		Vector2i(4, 3): 5,
+	}
+	return m
+
+
+func test_spin_multi_is_deterministic() -> void:
+	var a := _spin_conflict_board()
+	a.spin_step()
+	var b := _spin_conflict_board()
+	b.spin_step()
+	for k in a.cells:
+		assert_eq(
+			b.cells.get(k, -999), a.cells[k], "shared-neighbour spin is deterministic at %s" % k
+		)
+
+
 # --- growth -------------------------------------------------------------------
+
 
 func test_grow_fills_fringe_with_neighbor_color() -> void:
 	var m := _make_model()
@@ -127,6 +303,7 @@ func test_grow_protects_enclosed_pocket() -> void:
 
 # --- randomize ----------------------------------------------------------------
 
+
 func test_randomize_keeps_black() -> void:
 	var m := _make_model()
 	m.cells = {Vector2i(0, 0): 0, Vector2i(1, 0): GridModel.BLACK}
@@ -136,6 +313,7 @@ func test_randomize_keeps_black() -> void:
 
 
 # --- present colours ----------------------------------------------------------
+
 
 func test_present_colors_distinct_and_sorted() -> void:
 	var m := _make_model()
@@ -156,6 +334,7 @@ func test_present_colors_empty_on_clear_field() -> void:
 
 
 # --- win / lose ---------------------------------------------------------------
+
 
 func test_won_when_only_black_remains() -> void:
 	var m := _make_model()
@@ -183,6 +362,7 @@ func test_safe_above_danger_row() -> void:
 
 # --- danger proximity (drives the heartbeat audio) ----------------------------
 
+
 func test_max_row_empty_field() -> void:
 	var m := _make_model()
 	m.cells = {}
@@ -203,7 +383,7 @@ func test_max_row_counts_black() -> void:
 
 
 func test_rows_to_danger_two_rows_out() -> void:
-	var m := _make_model()   # danger_row = 12
+	var m := _make_model()  # danger_row = 12
 	m.cells = {Vector2i(0, 10): 0}
 	assert_eq(m.rows_to_danger(), 2, "deepest at danger_row - 2 -> slow pulse")
 
@@ -222,10 +402,17 @@ func test_rows_to_danger_empty_field_is_safe() -> void:
 
 # --- procedural free-play fill ------------------------------------------------
 
+
 func test_fill_random_is_deterministic_for_a_seed() -> void:
-	var a := GridModel.new(); a.width = 8; a.num_colors = 4; a.rng.seed = 999
+	var a := GridModel.new()
+	a.width = 8
+	a.num_colors = 4
+	a.rng.seed = 999
 	a.fill_random(6, 0.1)
-	var b := GridModel.new(); b.width = 8; b.num_colors = 4; b.rng.seed = 999
+	var b := GridModel.new()
+	b.width = 8
+	b.num_colors = 4
+	b.rng.seed = 999
 	b.fill_random(6, 0.1)
 	assert_eq(a.cells.size(), b.cells.size(), "same cell count for the same seed")
 	var identical := true
@@ -237,16 +424,22 @@ func test_fill_random_is_deterministic_for_a_seed() -> void:
 
 
 func test_fill_random_respects_num_colors() -> void:
-	var m := GridModel.new(); m.width = 10; m.num_colors = 3; m.rng.seed = 1
-	m.fill_random(5, 0.0)   # no black: a full rows*width breakable fill
+	var m := GridModel.new()
+	m.width = 10
+	m.num_colors = 3
+	m.rng.seed = 1
+	m.fill_random(5, 0.0)  # no black: a full rows*width breakable fill
 	assert_eq(m.cells.size(), 50, "fraction 0 fills every cell")
 	for c in m.cells.values():
 		assert_true(c >= 0 and c < 3, "every breakable colour is in [0, num_colors)")
 
 
 func test_fill_random_seeds_black_obstacles() -> void:
-	var m := GridModel.new(); m.width = 10; m.num_colors = 3; m.rng.seed = 7
-	m.fill_random(10, 0.1)   # ~10 black of 100 cells
+	var m := GridModel.new()
+	m.width = 10
+	m.num_colors = 3
+	m.rng.seed = 7
+	m.fill_random(10, 0.1)  # ~10 black of 100 cells
 	var black := 0
 	for c in m.cells.values():
 		if c == GridModel.BLACK:

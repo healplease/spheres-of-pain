@@ -4,6 +4,7 @@ extends GutTest
 ## so this just exercises the public contract headlessly: starts hidden, shows the text
 ## given to it, ignores empty text, and hides on request.
 
+
 func _hint() -> Hint:
 	var h: Hint = load("res://scenes/ui/hint.tscn").instantiate()
 	add_child_autofree(h)

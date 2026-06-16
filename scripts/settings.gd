@@ -1,3 +1,5 @@
+# gdlint:disable=max-public-methods
+# ^ a settings facade: one setter/read-through per option, by design
 extends Node
 
 ## Autoload "Settings": owns a SettingsStore (the persisted model) and is the ONLY
@@ -9,7 +11,8 @@ extends Node
 ## the level READS them from here at build time and re-syncs live via `graphics_changed`.
 ## The dependency points level -> Settings; Settings never reaches into a level's nodes.
 
-signal graphics_changed   # past-tense: emitted after a graphics/gameplay change so a running level re-applies
+# past-tense: emitted after a graphics/gameplay change so a running level re-applies
+signal graphics_changed
 
 var store := SettingsStore.new()
 
@@ -21,17 +24,25 @@ func _ready() -> void:
 
 # --- apply (model -> engine) ------------------------------------------------
 
+
 func apply_all() -> void:
 	apply_video()
 	apply_aa()
 	apply_audio()
 	apply_text_effects()
-	graphics_changed.emit()   # sync any already-running level's env/aim
-	Log.info(Log.CONFIG, "settings applied", {
-		"shadows": store.get_shadows(),
-		"ssao": store.get_ssao(),
-		"glow": store.get_glow(),
-	})
+	graphics_changed.emit()  # sync any already-running level's env/aim
+	(
+		Log
+		. info(
+			Log.CONFIG,
+			"settings applied",
+			{
+				"shadows": store.get_shadows(),
+				"ssao": store.get_ssao(),
+				"glow": store.get_glow(),
+			}
+		)
+	)
 
 
 func apply_video() -> void:
@@ -44,14 +55,22 @@ func apply_video() -> void:
 	if mode == Window.MODE_WINDOWED:
 		win.size = store.get_resolution()
 	DisplayServer.window_set_vsync_mode(
-		DisplayServer.VSYNC_ENABLED if store.get_vsync() else DisplayServer.VSYNC_DISABLED)
-	Engine.max_fps = store.get_fps_limit()   # 0 = unlimited
-	Log.debug(Log.CONFIG, "video", {
-		"display_mode": mode,
-		"resolution": win.size,
-		"vsync": store.get_vsync(),
-		"fps_limit": store.get_fps_limit(),
-	})
+		DisplayServer.VSYNC_ENABLED if store.get_vsync() else DisplayServer.VSYNC_DISABLED
+	)
+	Engine.max_fps = store.get_fps_limit()  # 0 = unlimited
+	(
+		Log
+		. debug(
+			Log.CONFIG,
+			"video",
+			{
+				"display_mode": mode,
+				"resolution": win.size,
+				"vsync": store.get_vsync(),
+				"fps_limit": store.get_fps_limit(),
+			}
+		)
+	)
 
 
 func apply_aa() -> void:
@@ -74,7 +93,9 @@ func apply_aa() -> void:
 		SettingsStore.AA.MSAA_8X:
 			vp.screen_space_aa = Viewport.SCREEN_SPACE_AA_DISABLED
 			vp.msaa_3d = Viewport.MSAA_8X
-	Log.debug(Log.CONFIG, "antialiasing", {"mode": SettingsStore.AA.keys()[store.get_antialiasing()]})
+	Log.debug(
+		Log.CONFIG, "antialiasing", {"mode": SettingsStore.AA.keys()[store.get_antialiasing()]}
+	)
 
 
 func apply_audio() -> void:
@@ -92,56 +113,72 @@ func apply_graphics() -> void:
 ## the RenderingServer reaches every title in every scene at once (no per-node wiring,
 ## and the autoload never touches a level's nodes). 1 = effect on, 0 = off.
 func apply_text_effects() -> void:
-	RenderingServer.global_shader_parameter_set(&"text_glitch", 1.0 if store.get_text_glitch() else 0.0)
+	RenderingServer.global_shader_parameter_set(
+		&"text_glitch", 1.0 if store.get_text_glitch() else 0.0
+	)
 
 
 # --- setters the Settings UI calls (mutate store -> auto-save -> apply) -------
 
+
 func set_aim_enabled(v: bool) -> void:
 	store.set_aim_enabled(v)
-	graphics_changed.emit()   # no global effect; a live level (e.g. a future pause overlay) can pick it up
+	# no global effect; a live level (e.g. a future pause overlay) can pick it up
+	graphics_changed.emit()
+
 
 func set_true_random(v: bool) -> void:
-	store.set_true_random(v)   # read by the next level at build; settings aren't reachable mid-level
+	store.set_true_random(v)  # read by the next level at build; settings aren't reachable mid-level
+
 
 func set_control_scheme(v: int) -> void:
-	store.set_control_scheme(v)   # read by the next level at build; settings aren't reachable mid-level
+	store.set_control_scheme(v)  # read by the next level at build; settings aren't reachable mid-level
+
 
 func set_resolution(v: Vector2i) -> void:
 	store.set_resolution(v)
 	apply_video()
 
+
 func set_display_mode(v: int) -> void:
 	store.set_display_mode(v)
 	apply_video()
+
 
 func set_vsync(v: bool) -> void:
 	store.set_vsync(v)
 	apply_video()
 
+
 func set_fps_limit(v: int) -> void:
 	store.set_fps_limit(v)
 	apply_video()
+
 
 func set_antialiasing(v: int) -> void:
 	store.set_antialiasing(v)
 	apply_aa()
 
+
 func set_shadows(v: int) -> void:
 	store.set_shadows(v)
 	apply_graphics()
+
 
 func set_ssao(v: bool) -> void:
 	store.set_ssao(v)
 	apply_graphics()
 
+
 func set_glow(v: bool) -> void:
 	store.set_glow(v)
 	apply_graphics()
 
+
 func set_text_glitch(v: bool) -> void:
 	store.set_text_glitch(v)
 	apply_text_effects()
+
 
 func set_volume(channel: StringName, v: float) -> void:
 	store.set_volume(channel, v)
@@ -150,8 +187,10 @@ func set_volume(channel: StringName, v: float) -> void:
 
 # --- read-throughs the level/UI use (so callers don't reach into .store) -----
 
+
 func aim_enabled() -> bool:
 	return store.get_aim_enabled()
+
 
 func true_random() -> bool:
 	return store.get_true_random()
@@ -165,20 +204,31 @@ func true_random() -> bool:
 func control_scheme() -> int:
 	if store.has_control_scheme():
 		return store.get_control_scheme()
-	return SettingsStore.ControlScheme.HOLD if _default_is_hold() else SettingsStore.ControlScheme.CLICK
+	return (
+		SettingsStore.ControlScheme.HOLD
+		if _default_is_hold()
+		else SettingsStore.ControlScheme.CLICK
+	)
 
 
 func _default_is_hold() -> bool:
-	return OS.has_feature("mobile") or (OS.has_feature("web") and DisplayServer.is_touchscreen_available())
+	return (
+		OS.has_feature("mobile")
+		or (OS.has_feature("web") and DisplayServer.is_touchscreen_available())
+	)
+
 
 func glow_enabled() -> bool:
 	return store.get_glow()
 
+
 func ssao_enabled() -> bool:
 	return store.get_ssao()
 
+
 func shadows() -> int:
 	return store.get_shadows()
+
 
 func text_glitch() -> bool:
 	return store.get_text_glitch()
@@ -194,27 +244,33 @@ func available_resolutions() -> Array[Vector2i]:
 			out.append(r)
 	var current := store.get_resolution()
 	if not out.has(current):
-		out.append(current)   # never hide the saved choice, even if it exceeds the monitor
+		out.append(current)  # never hide the saved choice, even if it exceeds the monitor
 	out.sort_custom(func(a, b): return a.x * a.y < b.x * b.y)
 	return out
 
 
 # --- helpers ----------------------------------------------------------------
 
+
 func _apply_bus(bus_name: StringName, linear: float) -> void:
 	var idx := AudioServer.get_bus_index(bus_name)
 	if idx < 0:
 		return
-	AudioServer.set_bus_mute(idx, linear <= 0.0)   # 0 mutes (linear_to_db(0) is -inf)
+	AudioServer.set_bus_mute(idx, linear <= 0.0)  # 0 mutes (linear_to_db(0) is -inf)
 	if linear > 0.0:
 		AudioServer.set_bus_volume_db(idx, linear_to_db(linear))
 
 
 func _bus_name(channel: StringName) -> StringName:
 	match channel:
-		&"master": return &"Master"
-		&"bgm": return &"BGM"
-		&"ambience": return &"Ambience"
-		&"hud": return &"HUD"
-		&"gameplay": return &"Gameplay"
+		&"master":
+			return &"Master"
+		&"bgm":
+			return &"BGM"
+		&"ambience":
+			return &"Ambience"
+		&"hud":
+			return &"HUD"
+		&"gameplay":
+			return &"Gameplay"
 	return &"Master"

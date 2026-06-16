@@ -8,14 +8,14 @@ extends PanelContainer
 ## .tscn), so it never intercepts the controls it floats over, and clamped to the
 ## viewport so a long hint never spills off-screen.
 
-const CURSOR_OFFSET := Vector2(18.0, 20.0)   # down-right of the pointer, clear of it
-const EDGE_MARGIN := 8.0                       # keep this far from the viewport edges
+const CURSOR_OFFSET := Vector2(18.0, 20.0)  # down-right of the pointer, clear of it
+const EDGE_MARGIN := 8.0  # keep this far from the viewport edges
 
 @onready var _label: Label = $Label
 
 
 func _ready() -> void:
-	top_level = true   # position in viewport space, ignoring the host's layout
+	top_level = true  # position in viewport space, ignoring the host's layout
 	hide()
 
 
@@ -40,7 +40,7 @@ func show_hint(text: String) -> void:
 		hide()
 		return
 	_label.text = text
-	reset_size()   # shrink to the new content so the follow math uses this frame's size
+	reset_size()  # shrink to the new content so the follow math uses this frame's size
 	show()
 
 

@@ -10,15 +10,19 @@ extends Control
 ## GameState.intro_played (an autoload flag) remembers it already ran. The reveal is
 ## skippable with Space or a click.
 
+const WORD_FADE := 0.35  # per-word fade-in
+const HOLD := 0.5  # beat after the phrase assembles, before it moves
+const MOVE_TIME := 0.9  # phrase travels + shrinks into the title slot
+const CROSSFADE := 0.5  # word-overlay -> real title + abyss bloom
+const UI_FADE := 0.6  # tagline + buttons rising in
+
 ## Gap (seconds) between each word surfacing. Tuned to the ~3.4s intro stinger;
 ## exported so it can be matched to the audio by eye.
 @export var word_interval := 0.65
 
-const WORD_FADE := 0.35    # per-word fade-in
-const HOLD := 0.5          # beat after the phrase assembles, before it moves
-const MOVE_TIME := 0.9     # phrase travels + shrinks into the title slot
-const CROSSFADE := 0.5     # word-overlay -> real title + abyss bloom
-const UI_FADE := 0.6       # tagline + buttons rising in
+var _intro_running := false
+var _intro_tween: Tween
+var _intro_faded: Array[CanvasItem] = []
 
 @onready var select_level_button: Button = $Center/VBox/SelectLevelButton
 @onready var settings_button: Button = $Center/VBox/SettingsButton
@@ -31,10 +35,6 @@ const UI_FADE := 0.6       # tagline + buttons rising in
 @onready var word_group: HBoxContainer = $IntroOverlay/WordGroup
 @onready var version_label: Label = $Version
 
-var _intro_running := false
-var _intro_tween: Tween
-var _intro_faded: Array[CanvasItem] = []
-
 
 func _ready() -> void:
 	# Build stamp — CI rewrites application/config/version from the git tag at export;
@@ -45,8 +45,9 @@ func _ready() -> void:
 		intro_overlay.queue_free()
 		select_level_button.grab_focus()
 		return
-	_intro_faded = [background, overlay, title, tagline,
-			select_level_button, settings_button, quit_button]
+	_intro_faded = [
+		background, overlay, title, tagline, select_level_button, settings_button, quit_button
+	]
 	_run_intro()
 
 
@@ -55,7 +56,7 @@ func _ready() -> void:
 ## size and the title needs its final on-screen rect to be the move target.
 func _run_intro() -> void:
 	for c in _intro_faded:
-		c.modulate.a = 0.0   # present in layout (NOT visible=false), just invisible
+		c.modulate.a = 0.0  # present in layout (NOT visible=false), just invisible
 	await get_tree().process_frame
 	await get_tree().process_frame
 	if not is_inside_tree():
@@ -72,8 +73,9 @@ func _run_intro() -> void:
 	var target_pos := target.get_center() - word_group.pivot_offset
 
 	_intro_running = true
-	var words := [$IntroOverlay/WordGroup/Word0, $IntroOverlay/WordGroup/Word1,
-			$IntroOverlay/WordGroup/Word2]
+	var words := [
+		$IntroOverlay/WordGroup/Word0, $IntroOverlay/WordGroup/Word1, $IntroOverlay/WordGroup/Word2
+	]
 
 	var t := create_tween()
 	t.tween_callback(Sound.play_intro)
@@ -82,10 +84,19 @@ func _run_intro() -> void:
 		t.tween_interval(word_interval)
 	t.tween_interval(HOLD)
 	# Travel + shrink into the title slot (the two run together).
-	t.tween_property(word_group, "position", target_pos, MOVE_TIME) \
-			.set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_IN_OUT)
-	t.parallel().tween_property(word_group, "scale", Vector2(target_scale, target_scale), MOVE_TIME) \
-			.set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_IN_OUT)
+	(
+		t
+		. tween_property(word_group, "position", target_pos, MOVE_TIME)
+		. set_trans(Tween.TRANS_CUBIC)
+		. set_ease(Tween.EASE_IN_OUT)
+	)
+	(
+		t
+		. parallel()
+		. tween_property(word_group, "scale", Vector2(target_scale, target_scale), MOVE_TIME)
+		. set_trans(Tween.TRANS_CUBIC)
+		. set_ease(Tween.EASE_IN_OUT)
+	)
 	# Hand off to the real title as the abyss blooms back in around it.
 	t.chain().tween_property(intro_overlay, "modulate:a", 0.0, CROSSFADE)
 	t.parallel().tween_property(title, "modulate:a", 1.0, CROSSFADE)
@@ -106,9 +117,15 @@ func _run_intro() -> void:
 func _input(event: InputEvent) -> void:
 	if not _intro_running:
 		return
-	var skip: bool = (event is InputEventKey and event.pressed and not event.echo
-			and (event as InputEventKey).keycode == KEY_SPACE) \
-			or (event is InputEventMouseButton and event.pressed)
+	var skip: bool = (
+		(
+			event is InputEventKey
+			and event.pressed
+			and not event.echo
+			and (event as InputEventKey).keycode == KEY_SPACE
+		)
+		or (event is InputEventMouseButton and event.pressed)
+	)
 	if skip:
 		get_viewport().set_input_as_handled()
 		_finalize_intro(true)

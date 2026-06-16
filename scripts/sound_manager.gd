@@ -30,8 +30,8 @@ const POP_DB := -12.0
 const CLICK_DB := -8.0
 const HOVER_DB := -18.0
 const INTRO_DB := 0.0
-const HEARTBEAT_DB := -4.0    # the heartbeats' "100%" target
-const SILENT_DB := -60.0      # effective silence (never linear_to_db(0) = -inf)
+const HEARTBEAT_DB := -4.0  # the heartbeats' "100%" target
+const SILENT_DB := -60.0  # effective silence (never linear_to_db(0) = -inf)
 
 # Gap between the individual pops of a cluster burst (seconds), so a big clear
 # reads as a few deliberate, sequenced pops instead of one mushy overlap.
@@ -126,6 +126,7 @@ func play_back() -> void:
 
 # --- startup intro stinger ----------------------------------------------------
 
+
 ## Play the one-shot title stinger that scores the "SPHERES / OF / PAIN" reveal.
 func play_intro() -> void:
 	_intro.play()
@@ -137,6 +138,7 @@ func stop_intro() -> void:
 
 
 # --- danger heartbeats --------------------------------------------------------
+
 
 ## Slow pulse: on when the field is exactly two rows from the lose line. Each call
 ## fades over HEARTBEAT_FADE; toggling it re-kills the in-flight fade so rapid

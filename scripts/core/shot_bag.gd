@@ -16,10 +16,10 @@ extends RefCounted
 ## that set changes. With every colour present the bag size is present.size()^2,
 ## matching the "number-of-colours squared" design.
 
-var true_random := true                 # set from the Gameplay "True random" setting
+var true_random := true  # set from the Gameplay "True random" setting
 var rng := RandomNumberGenerator.new()  # seedable so tests are deterministic
 
-var _bag: Array[int] = []        # remaining shuffled draws (bag mode only)
+var _bag: Array[int] = []  # remaining shuffled draws (bag mode only)
 var _built_for: Array[int] = []  # the present-colour set the current bag was built from
 
 

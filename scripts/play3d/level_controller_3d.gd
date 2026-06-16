@@ -65,7 +65,7 @@ var _level: LevelResource = null  # null = free play (random board)
 var _bag := ShotBag.new()  # decides the gun's next colour (true-random or bag mode)
 var _mesh: SphereMesh
 var _mats: Array[StandardMaterial3D] = []
-var _black_mat: ShaderMaterial  # obsidian + self-lit fresnel rim (shaders/obsidian_rim.gdshader)
+var _specials: Dictionary  # indestructible sentinel (< 0) -> Material (obsidian / swirl / pulse)
 var _preview_mesh := ImmediateMesh.new()
 var _preview_mat: StandardMaterial3D
 var _aim2d := Vector2(0, -1)
@@ -156,7 +156,7 @@ func _ready() -> void:
 	sim.play_right = origin2d.x + (columns - 1) * diameter + diameter
 	sim.play_bottom = _play_bottom
 
-	board.setup(model, _mesh, _mats, _black_mat, diameter)
+	board.setup(model, _mesh, _mats, _specials, diameter)
 
 	shooter.position = to3d(muzzle2d)
 	# Configure the colour source before the first draw: true-random or the fair bag,
@@ -385,7 +385,11 @@ func _build_visual_assets() -> void:
 	var assets := SphereAssets.new(SPHERE_RADIUS)
 	_mesh = assets.mesh
 	_mats = assets.mats
-	_black_mat = assets.black_mat
+	_specials = {
+		GridModel.BLACK: assets.black_mat,
+		GridModel.SPIN: assets.spin_mat,
+		GridModel.BOUNCE: assets.bounce_mat,
+	}
 	_preview_mat = assets.preview_mat
 
 
@@ -478,7 +482,7 @@ func _rand_color() -> int:
 
 
 func _mat_for(color: int) -> Material:
-	return BoardView3D.mat_for(_mats, _black_mat, color)
+	return BoardView3D.mat_for(_mats, _specials, color)
 
 
 # --- shot results -------------------------------------------------------------
@@ -539,6 +543,10 @@ func _on_landed(cell: Vector2i, color: int) -> void:
 		Sound.play_cluster_pop(res.popped.size() + res.orphaned.size())
 	else:
 		model.grow()
+	# Spin spheres react to the just-landed shot, cycling their neighbours' colours.
+	# Run it on the final post-pop/grow board, before sync() reflects the changes and
+	# before the win/lose verdict is read. sync() recolours the changed cells for free.
+	model.spin_step()
 	# On a pop, ripple the clear outward from the impact cell; on a dud the grown
 	# spheres just animate in (no removals, so pop_origin is irrelevant).
 	var settle := board.sync([cell], cell)  # the landed sphere appears full-size

@@ -8,9 +8,9 @@ extends Node
 ## and the world-space field bounds (frame / fit_embers / apply_theme), and this
 ## node does the framing math, atmosphere, and live graphics-settings updates.
 
-const MARGIN_TOP := 96.0       # reserved screen margin at the top (design px) — extra
-                               # headroom so the HUD level name clears the field's top border
-const MARGIN_BOTTOM := 50.0    # reserved screen margin at the bottom (design px)
+const MARGIN_TOP := 96.0  # reserved screen margin at the top (design px) — extra
+# headroom so the HUD level name clears the field's top border
+const MARGIN_BOTTOM := 50.0  # reserved screen margin at the bottom (design px)
 const BACKDROP_OFFSET := 12.0  # metres the abyss backdrop sits behind the board plane
 
 var _world_env: WorldEnvironment
@@ -18,12 +18,17 @@ var _light: DirectionalLight3D
 var _camera: Camera3D
 var _backdrop: MeshInstance3D
 var _embers: GPUParticles3D
-var _outer_bounds := Vector4.ZERO   # cached field-frame bounds, so a resize can reframe
-var _view_center := Vector3.ZERO    # camera look target (field centre nudged down for the HUD)
+var _outer_bounds := Vector4.ZERO  # cached field-frame bounds, so a resize can reframe
+var _view_center := Vector3.ZERO  # camera look target (field centre nudged down for the HUD)
 
 
-func setup(world_env: WorldEnvironment, light: DirectionalLight3D, camera: Camera3D,
-		backdrop: MeshInstance3D, embers: GPUParticles3D) -> void:
+func setup(
+	world_env: WorldEnvironment,
+	light: DirectionalLight3D,
+	camera: Camera3D,
+	backdrop: MeshInstance3D,
+	embers: GPUParticles3D
+) -> void:
 	_world_env = world_env
 	_light = light
 	_camera = camera
@@ -60,7 +65,7 @@ func _setup_environment() -> void:
 	env.glow_bloom = 0.0
 	env.glow_hdr_threshold = 1.0
 	env.glow_blend_mode = Environment.GLOW_BLEND_MODE_ADDITIVE
-	env.ssao_enabled = false   # overridden by _apply_graphics_settings() per the player's setting
+	env.ssao_enabled = false  # overridden by _apply_graphics_settings() per the player's setting
 	# Gentle grading toward the gothic-ink look: drained colour, a hair more bite.
 	env.adjustment_enabled = true
 	env.adjustment_saturation = 0.88
@@ -102,7 +107,7 @@ func _place_camera() -> void:
 	# stretch), so the margins are deterministic across resolutions.
 	var b := _outer_bounds
 	if b == Vector4.ZERO:
-		return   # a resize fired before frame() supplied the field bounds
+		return  # a resize fired before frame() supplied the field bounds
 	var center := Vector3((b.x + b.y) * 0.5, (b.z + b.w) * 0.5, 0.0)
 	var field_h := absf(b.z - b.w)
 	var field_w := absf(b.y - b.x)
@@ -138,7 +143,7 @@ func _fit_backdrop() -> void:
 		return
 	var h := 2.0 * dist * tan(deg_to_rad(_camera.fov) * 0.5) * 1.15
 	var w := h * (vp.x / vp.y) * 1.15
-	_backdrop.scale = Vector3(w * 0.5, h * 0.5, 1.0)   # QuadMesh is 2x2
+	_backdrop.scale = Vector3(w * 0.5, h * 0.5, 1.0)  # QuadMesh is 2x2
 
 
 ## Tint the abyss, embers and fog to the level's palette. The shader/particle

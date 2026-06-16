@@ -6,14 +6,19 @@ extends RefCounted
 ##   - one SphereMesh template,
 ##   - one StandardMaterial3D per palette colour (BoardView3D.PALETTE),
 ##   - the obsidian shader material for black/unbreakable obstacles,
+##   - the swirl/pulse shader materials for the spin/bounce obstacles,
 ##   - the unshaded translucent material for the aim-ray preview.
 ## Pure resource construction — no scene nodes — so it stays out of the controller.
 
 const _OBSIDIAN := preload("res://shaders/obsidian_rim.gdshader")
+const _SPIN := preload("res://shaders/spin_bubble.gdshader")
+const _BOUNCE := preload("res://shaders/bounce_bubble.gdshader")
 
 var mesh: SphereMesh
 var mats: Array[StandardMaterial3D] = []
 var black_mat: ShaderMaterial
+var spin_mat: ShaderMaterial
+var bounce_mat: ShaderMaterial
 var preview_mat: StandardMaterial3D
 
 
@@ -46,6 +51,13 @@ func _init(radius: float) -> void:
 	# stays dark and unbreakable-looking.
 	black_mat = ShaderMaterial.new()
 	black_mat.shader = _OBSIDIAN
+	# Spin/bounce share the obsidian-family look (dark face, self-lit rim) but each adds
+	# its own animated cue — a rotating swirl and an elastic pulse — keyed off the
+	# shader's TIME uniform. Defaults are baked into the shaders; nothing to set here.
+	spin_mat = ShaderMaterial.new()
+	spin_mat.shader = _SPIN
+	bounce_mat = ShaderMaterial.new()
+	bounce_mat.shader = _BOUNCE
 	preview_mat = StandardMaterial3D.new()
 	preview_mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
 	preview_mat.albedo_color = Color(0.9, 0.85, 0.85, 0.55)

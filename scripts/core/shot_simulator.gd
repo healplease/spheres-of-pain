@@ -20,6 +20,11 @@ extends RefCounted
 ## aim preview and the live shot run this same simulate(), so they stay identical.
 const HIT_DISTANCE_SCALE := 0.78
 
+## A fired sphere reflects off a BOUNCE sphere like a wall instead of attaching. Cap
+## the reflections per shot so a ball trapped between two bouncers can't burn the
+## whole step budget — past the cap it falls through to a normal miss-exit.
+const MAX_BOUNCES := 12
+
 var model: GridModel
 var diameter := 56.0
 var columns := 11
@@ -35,6 +40,7 @@ func simulate(start: Vector2, dir: Vector2) -> Dictionary:
 	var v := dir.normalized()
 	var r := diameter * 0.5
 	var collided = null
+	var bounces := 0
 	for _i in range(6000):
 		p += v * 6.0
 		if p.x < play_left + r:
@@ -45,14 +51,28 @@ func simulate(start: Vector2, dir: Vector2) -> Dictionary:
 			p.x = play_right - r
 			v.x = -v.x
 			pts.append(p)
-		if p.y <= origin.y:           # top wall: reflect downward
+		if p.y <= origin.y:  # top wall: reflect downward
 			p.y = origin.y
 			v.y = -v.y
 			pts.append(p)
-		if p.y > play_bottom:         # exited the bottom -> miss
+		if p.y > play_bottom:  # exited the bottom -> miss
 			pts.append(p)
 			return {"path": pts, "miss": true}
 		var hit = _nearest_occupied(p)
+		# A bounce sphere reflects the ball like a wall instead of catching it. Check
+		# it BEFORE the attach break below, or the ball would stick onto the bouncer.
+		if hit != null and model.cells[hit] == GridModel.BOUNCE:
+			var bw := Hex.cell_to_world(hit, origin, diameter)
+			var n := p - bw
+			# Dead-centre hit -> degenerate normal; bounce straight back along the ray.
+			n = (-v) if n.length() < 0.001 else n.normalized()
+			v = v - 2.0 * v.dot(n) * n
+			p = bw + n * (diameter * HIT_DISTANCE_SCALE + 1.0)  # eject just outside the hit ring
+			pts.append(p)
+			bounces += 1
+			if bounces > MAX_BOUNCES:
+				break  # trapped: fall through to the miss return below
+			continue
 		if hit != null:
 			pts.append(p)
 			collided = hit
@@ -60,8 +80,8 @@ func simulate(start: Vector2, dir: Vector2) -> Dictionary:
 	if collided == null:
 		return {"path": pts, "miss": true}
 	var cell: Vector2i = _snap_cell(p, collided)
-	if cell.x < 0:                # no legal attach cell -> treat as a miss rather
-		pts.append(p)             # than overwriting/floating a sphere (see _snap_cell)
+	if cell.x < 0:  # no legal attach cell -> treat as a miss rather
+		pts.append(p)  # than overwriting/floating a sphere (see _snap_cell)
 		return {"path": pts, "miss": true}
 	pts.append(Hex.cell_to_world(cell, origin, diameter))
 	return {"path": pts, "cell": cell, "miss": false}
@@ -100,7 +120,7 @@ func _snap_cell(p: Vector2, collided) -> Vector2i:
 			continue
 		if model.cells.has(c):
 			continue
-		if not model.has_neighbor(c):   # must touch the cluster to attach
+		if not model.has_neighbor(c):  # must touch the cluster to attach
 			continue
 		var d := p.distance_to(Hex.cell_to_world(c, origin, diameter))
 		if d < bestd:

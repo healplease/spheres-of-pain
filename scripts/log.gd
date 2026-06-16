@@ -35,11 +35,11 @@ enum Level { TRACE, DEBUG, INFO, WARN, ERROR }
 
 ## Subsystem tags. Kept short (<= 6 chars) so the column stays aligned, and as constants
 ## so call sites can't drift into typo'd variants that break grep.
-const BOOT := "BOOT"      # session start/stop, environment
-const FLOW := "FLOW"      # scene navigation + level loading (GameState)
-const PLAY := "PLAY"      # a level's lifecycle: ready, danger escalation, end
-const SHOT := "SHOT"      # the shooter: fire / miss
-const MODEL := "MODEL"    # results read back off the GridModel (attach: pop/orphan)
+const BOOT := "BOOT"  # session start/stop, environment
+const FLOW := "FLOW"  # scene navigation + level loading (GameState)
+const PLAY := "PLAY"  # a level's lifecycle: ready, danger escalation, end
+const SHOT := "SHOT"  # the shooter: fire / miss
+const MODEL := "MODEL"  # results read back off the GridModel (attach: pop/orphan)
 const CONFIG := "CONFIG"  # settings pushed into live engine state
 
 const _LEVEL_TAG := ["TRACE", "DEBUG", "INFO ", "WARN ", "ERROR"]
@@ -51,7 +51,7 @@ var _file: FileAccess = null
 
 
 func _ready() -> void:
-	process_mode = Node.PROCESS_MODE_ALWAYS   # keep logging even if the tree is paused
+	process_mode = Node.PROCESS_MODE_ALWAYS  # keep logging even if the tree is paused
 	min_level = Level.DEBUG if OS.is_debug_build() else Level.INFO
 	if OS.has_environment("SOP_LOG_LEVEL"):
 		var parsed := _parse_level(OS.get_environment("SOP_LOG_LEVEL"))
@@ -70,17 +70,22 @@ func _exit_tree() -> void:
 
 # --- public API ---------------------------------------------------------------
 
+
 func trace(category: String, message: String, data: Dictionary = {}) -> void:
 	_emit(Level.TRACE, category, message, data)
+
 
 func debug(category: String, message: String, data: Dictionary = {}) -> void:
 	_emit(Level.DEBUG, category, message, data)
 
+
 func info(category: String, message: String, data: Dictionary = {}) -> void:
 	_emit(Level.INFO, category, message, data)
 
+
 func warn(category: String, message: String, data: Dictionary = {}) -> void:
 	_emit(Level.WARN, category, message, data)
+
 
 func error(category: String, message: String, data: Dictionary = {}) -> void:
 	_emit(Level.ERROR, category, message, data)
@@ -94,16 +99,20 @@ func enabled(level: Level) -> bool:
 
 # --- internals ----------------------------------------------------------------
 
+
 func _emit(level: Level, category: String, message: String, data: Dictionary) -> void:
 	if level < min_level:
 		return
-	var line := "[%9.3f] %s %-6s %s%s" % [
-		Time.get_ticks_msec() / 1000.0,
-		_LEVEL_TAG[level],
-		category,
-		message,
-		_format_data(data),
-	]
+	var line := (
+		"[%9.3f] %s %-6s %s%s"
+		% [
+			Time.get_ticks_msec() / 1000.0,
+			_LEVEL_TAG[level],
+			category,
+			message,
+			_format_data(data),
+		]
+	)
 	match level:
 		Level.WARN:
 			push_warning(line)
@@ -113,7 +122,7 @@ func _emit(level: Level, category: String, message: String, data: Dictionary) ->
 			print(line)
 	if _file != null:
 		_file.store_line(line)
-		_file.flush()   # low volume (event-driven, not per-frame); keep the tail through a crash
+		_file.flush()  # low volume (event-driven, not per-frame); keep the tail through a crash
 
 
 ## Render a data dict as logfmt-style ` | key=value key=value`. Values are kept
@@ -131,9 +140,8 @@ func _format_data(data: Dictionary) -> String:
 func _value(v: Variant) -> String:
 	if v is String:
 		var s: String = v
-		if s.is_empty() or s.contains(" ") or s.contains("\""):
-			return "\"%s\"" % s.replace("\"", "'")
-		return s
+		var needs_quote := s.is_empty() or s.contains(" ") or s.contains('"')
+		return ('"%s"' % s.replace('"', "'")) if needs_quote else s
 	if v is bool:
 		return "true" if v else "false"
 	if v is Vector2i:
@@ -158,8 +166,8 @@ func _open_file() -> void:
 	var path := base + "/" + _FILE_NAME
 	if FileAccess.file_exists(path):
 		var prev := base + "/" + _PREV_NAME
-		DirAccess.remove_absolute(prev)         # rename can't overwrite on Windows
-		DirAccess.rename_absolute(path, prev)   # keep exactly one prior session
+		DirAccess.remove_absolute(prev)  # rename can't overwrite on Windows
+		DirAccess.rename_absolute(path, prev)  # keep exactly one prior session
 	_file = FileAccess.open(path, FileAccess.WRITE)
 	if _file == null and base != "user://logs":
 		# res:// wasn't writable after all (e.g. an exported debug build) — fall back.
@@ -170,22 +178,33 @@ func _open_file() -> void:
 func _write_session_header() -> void:
 	var where := _file.get_path_absolute() if _file != null else "(console only)"
 	if _file != null:
-		_file.store_line("==== Spheres of Pain — session log ============================================")
-	info(BOOT, "session start", {
-		"version": str(ProjectSettings.get_setting("application/config/version", "dev")),
-		"time": Time.get_datetime_string_from_system(false, true),
-		"platform": OS.get_name(),
-		"debug": OS.is_debug_build(),
-		"level": _LEVEL_TAG[min_level].strip_edges(),
-		"file": where,
-	})
+		_file.store_line(
+			"==== Spheres of Pain — session log ============================================"
+		)
+	info(
+		BOOT,
+		"session start",
+		{
+			"version": str(ProjectSettings.get_setting("application/config/version", "dev")),
+			"time": Time.get_datetime_string_from_system(false, true),
+			"platform": OS.get_name(),
+			"debug": OS.is_debug_build(),
+			"level": _LEVEL_TAG[min_level].strip_edges(),
+			"file": where,
+		}
+	)
 
 
 func _parse_level(s: String) -> int:
 	match s.strip_edges().to_upper():
-		"TRACE": return Level.TRACE
-		"DEBUG": return Level.DEBUG
-		"INFO": return Level.INFO
-		"WARN", "WARNING": return Level.WARN
-		"ERROR": return Level.ERROR
+		"TRACE":
+			return Level.TRACE
+		"DEBUG":
+			return Level.DEBUG
+		"INFO":
+			return Level.INFO
+		"WARN", "WARNING":
+			return Level.WARN
+		"ERROR":
+			return Level.ERROR
 	return -1

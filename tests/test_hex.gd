@@ -13,8 +13,7 @@ func test_every_neighbour_is_distance_one() -> void:
 	# Check on both row parities, including negative rows (cube halving must stay exact).
 	for cell in [Vector2i(5, 0), Vector2i(5, 1), Vector2i(3, 4), Vector2i(2, -1)]:
 		for nb in Hex.neighbors(cell):
-			assert_eq(Hex.distance(cell, nb), 1,
-				"%s -> %s is one step" % [cell, nb])
+			assert_eq(Hex.distance(cell, nb), 1, "%s -> %s is one step" % [cell, nb])
 
 
 func test_distance_is_symmetric() -> void:
@@ -30,4 +29,6 @@ func test_two_steps_along_a_row() -> void:
 
 func test_straight_down_two_rows() -> void:
 	# Going down two rows in the same column: each row step is one hop, so distance 2.
-	assert_eq(Hex.distance(Vector2i(3, 2), Vector2i(3, 4)), 2, "two rows down (same col) is distance 2")
+	assert_eq(
+		Hex.distance(Vector2i(3, 2), Vector2i(3, 4)), 2, "two rows down (same col) is distance 2"
+	)

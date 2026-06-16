@@ -1,0 +1,17 @@
+[gd_resource type="Resource" script_class="LevelResource" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scripts/core/level_resource.gd" id="1_lvl"]
+
+[resource]
+script = ExtResource("1_lvl")
+id = 11
+title = "The Turning"
+lore_fragment = "One eye at the centre, and it never blinks. It only turns, and the colours turn with it."
+width = 9
+num_colors = 3
+danger_row = 14
+abyss_color_a = Color(0.05, 0.12, 0.16, 1)
+abyss_color_b = Color(0.04, 0.07, 0.12, 1)
+ember_color = Color(0.4, 0.85, 1, 1)
+fog_color = Color(0.02, 0.03, 0.045, 1)
+layout = PackedStringArray("001122001", "12S021120", "210012210", "021201012")

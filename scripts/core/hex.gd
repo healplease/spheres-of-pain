@@ -16,11 +16,23 @@ extends RefCounted
 ## Source: Red Blob Games "odd-r" offset neighbours.
 const DIRS := [
 	# even rows
-	[Vector2i(1, 0), Vector2i(0, -1), Vector2i(-1, -1),
-	 Vector2i(-1, 0), Vector2i(-1, 1), Vector2i(0, 1)],
+	[
+		Vector2i(1, 0),
+		Vector2i(0, -1),
+		Vector2i(-1, -1),
+		Vector2i(-1, 0),
+		Vector2i(-1, 1),
+		Vector2i(0, 1)
+	],
 	# odd rows
-	[Vector2i(1, 0), Vector2i(1, -1), Vector2i(0, -1),
-	 Vector2i(-1, 0), Vector2i(0, 1), Vector2i(1, 1)],
+	[
+		Vector2i(1, 0),
+		Vector2i(1, -1),
+		Vector2i(0, -1),
+		Vector2i(-1, 0),
+		Vector2i(0, 1),
+		Vector2i(1, 1)
+	],
 ]
 
 ## Vertical distance between rows, as a fraction of the diameter (hex packing).
@@ -55,10 +67,7 @@ static func _to_cube(cell: Vector2i) -> Vector3i:
 
 static func cell_to_world(cell: Vector2i, origin: Vector2, d: float) -> Vector2:
 	var x_off := d * 0.5 if (cell.y & 1) == 1 else 0.0
-	return Vector2(
-		origin.x + cell.x * d + x_off,
-		origin.y + cell.y * d * ROW_RATIO
-	)
+	return Vector2(origin.x + cell.x * d + x_off, origin.y + cell.y * d * ROW_RATIO)
 
 
 static func world_to_cell(pos: Vector2, origin: Vector2, d: float) -> Vector2i:

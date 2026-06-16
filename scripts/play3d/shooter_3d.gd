@@ -11,7 +11,7 @@ signal fired
 ## controller can show the aim ray for the duration of the aim. Never emitted in CLICK.
 signal aim_active_changed(active: bool)
 
-const NEXT_SCALE := 0.6    # the queued sphere is shown smaller, off to the side
+const NEXT_SCALE := 0.6  # the queued sphere is shown smaller, off to the side
 const RELOAD_TIME := 0.16  # next sphere sliding into the muzzle slot
 const APPEAR_TIME := 0.14  # fresh next sphere growing into the side slot
 
@@ -19,7 +19,6 @@ const APPEAR_TIME := 0.14  # fresh next sphere growing into the side slot
 ## flips it back on when the shot resolves. In HOLD, a re-enable that lands while
 ## the fire button is still physically held re-arms the aim ray — otherwise the
 ## press that should have shown it was swallowed (it arrived while disabled).
-var _enabled := true
 var enabled: bool:
 	get:
 		return _enabled
@@ -34,8 +33,9 @@ var hold_to_fire := false
 var current_color := 0
 var next_color := 1
 
+var _enabled := true  # backing field for `enabled`
 var _mesh: Mesh
-var _mats: Array          # Array[StandardMaterial3D]
+var _mats: Array  # Array[StandardMaterial3D]
 var _loaded: MeshInstance3D
 var _next: MeshInstance3D
 var _next_home := Vector3.ZERO
@@ -66,10 +66,18 @@ func reload(new_next: int) -> void:
 	_loaded.visible = false
 	_reload_tween = create_tween()
 	_reload_tween.set_parallel(true)
-	_reload_tween.tween_property(_next, "position", Vector3.ZERO, RELOAD_TIME) \
-		.set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
-	_reload_tween.tween_property(_next, "scale", Vector3.ONE, RELOAD_TIME) \
-		.set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
+	(
+		_reload_tween
+		. tween_property(_next, "position", Vector3.ZERO, RELOAD_TIME)
+		. set_trans(Tween.TRANS_QUAD)
+		. set_ease(Tween.EASE_OUT)
+	)
+	(
+		_reload_tween
+		. tween_property(_next, "scale", Vector3.ONE, RELOAD_TIME)
+		. set_trans(Tween.TRANS_QUAD)
+		. set_ease(Tween.EASE_OUT)
+	)
 	_reload_tween.chain().tween_callback(_settle_reload)
 
 
@@ -79,8 +87,12 @@ func _settle_reload() -> void:
 	_apply_slots()
 	_next.scale = Vector3.ZERO
 	_reload_tween = create_tween()
-	_reload_tween.tween_property(_next, "scale", Vector3.ONE * NEXT_SCALE, APPEAR_TIME) \
-		.set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
+	(
+		_reload_tween
+		. tween_property(_next, "scale", Vector3.ONE * NEXT_SCALE, APPEAR_TIME)
+		. set_trans(Tween.TRANS_BACK)
+		. set_ease(Tween.EASE_OUT)
+	)
 
 
 ## Snap both slots to the current colours/transforms. Also cancels a reload

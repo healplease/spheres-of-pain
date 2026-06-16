@@ -6,8 +6,6 @@ extends Node3D
 ## BoardView; only the presentation differs. Logical 2D cell positions are mapped
 ## to 3D via S (metres per logical pixel; one cell ≈ 1 m).
 
-var _s := 1.0 / 56.0   # metres per logical pixel = 1/diameter; set in setup()
-
 ## Sphere colour palette (colour id -> hue). The controller builds one
 ## StandardMaterial3D per entry. Final spheres get engraved sigils (the
 ## colorblind cue) in M3.
@@ -28,26 +26,29 @@ const PALETTE: Array[Color] = [
 ]
 
 # Animation tuning.
-const SPAWN_TIME := 0.25   # grow-from-a-point duration for newly created spheres
-const POP_TIME := 0.20     # expand-and-fade duration for cleared spheres
-const POP_SCALE := 1.3     # how far a dying sphere swells before vanishing
-const POP_STAGGER := 0.1   # extra delay per unit of hex distance from the pop origin
+const SPAWN_TIME := 0.25  # grow-from-a-point duration for newly created spheres
+const POP_TIME := 0.20  # expand-and-fade duration for cleared spheres
+const POP_SCALE := 1.3  # how far a dying sphere swells before vanishing
+const POP_STAGGER := 0.1  # extra delay per unit of hex distance from the pop origin
 
 var model: GridModel
 var diameter := 56.0
+var _s := 1.0 / 56.0  # metres per logical pixel = 1/diameter; set in setup()
 var _mesh: Mesh
-var _mats: Array          # Array[StandardMaterial3D], indexed by colour id
-var _black_mat: ShaderMaterial
-var _spheres: Dictionary = {}   # Vector2i -> MeshInstance3D (live spheres only)
+var _mats: Array  # Array[StandardMaterial3D], indexed by colour id
+var _specials: Dictionary  # indestructible sentinel (< 0) -> Material
+var _spheres: Dictionary = {}  # Vector2i -> MeshInstance3D (live spheres only)
 
 
-func setup(p_model: GridModel, p_mesh: Mesh, p_mats: Array, p_black: ShaderMaterial, p_diameter: float) -> void:
+func setup(
+	p_model: GridModel, p_mesh: Mesh, p_mats: Array, p_specials: Dictionary, p_diameter: float
+) -> void:
 	model = p_model
 	_mesh = p_mesh
 	_mats = p_mats
-	_black_mat = p_black
+	_specials = p_specials
 	diameter = p_diameter
-	_s = 1.0 / p_diameter   # world scale follows the configured sphere size
+	_s = 1.0 / p_diameter  # world scale follows the configured sphere size
 	_build_all()
 
 
@@ -104,14 +105,15 @@ func sync(instant_cells: Array = [], pop_origin = null) -> float:
 
 
 ## Single source of truth for the colour -> material map, shared by the board, the
-## projectile, and the muzzle so they can never drift. BLACK gets the obsidian
-## shader; any other id wraps into the palette materials.
-static func mat_for(mats: Array, black: Material, color: int) -> Material:
-	return black if color == GridModel.BLACK else mats[color % mats.size()]
+## projectile, and the muzzle so they can never drift. Any indestructible sentinel
+## (< 0: BLACK/SPIN/BOUNCE) looks its material up in `specials`; any breakable id
+## wraps into the palette materials.
+static func mat_for(mats: Array, specials: Dictionary, color: int) -> Material:
+	return specials[color] if color < 0 else mats[color % mats.size()]
 
 
 func _mat_for(color: int) -> Material:
-	return BoardView3D.mat_for(_mats, _black_mat, color)
+	return BoardView3D.mat_for(_mats, _specials, color)
 
 
 func _make_sphere(color: int) -> MeshInstance3D:
@@ -134,8 +136,13 @@ func _spawn(cell: Vector2i, color: int, instant: bool) -> void:
 	if instant:
 		return
 	var tw := mi.create_tween()
-	tw.tween_property(mi, "scale", Vector3.ONE, SPAWN_TIME) \
-		.from(Vector3.ZERO).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
+	(
+		tw
+		. tween_property(mi, "scale", Vector3.ONE, SPAWN_TIME)
+		. from(Vector3.ZERO)
+		. set_trans(Tween.TRANS_BACK)
+		. set_ease(Tween.EASE_OUT)
+	)
 
 
 ## Clear a sphere with an expand-and-fade pop, then free it. Removed from the

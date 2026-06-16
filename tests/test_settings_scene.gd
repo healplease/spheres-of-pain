@@ -6,6 +6,7 @@ extends GutTest
 ## population, slider seeding, signal wiring) — so a broken builder fails headless here
 ## instead of only when a player opens the menu.
 
+
 func _open() -> SettingsScene:
 	var scene: SettingsScene = load("res://scenes/settings.tscn").instantiate()
 	add_child_autofree(scene)
@@ -19,9 +20,15 @@ func _tab(scene: SettingsScene, name: String) -> VBoxContainer:
 func test_scene_builds_all_tab_rows() -> void:
 	var scene := _open()
 	await wait_frames(1)
-	assert_eq(_tab(scene, "Gameplay").get_child_count(), 3, "Gameplay: shooting controls + aim + true random rows")
+	assert_eq(
+		_tab(scene, "Gameplay").get_child_count(),
+		3,
+		"Gameplay: shooting controls + aim + true random rows"
+	)
 	assert_eq(_tab(scene, "Display").get_child_count(), 4, "Display: mode/resolution/vsync/fps")
-	assert_eq(_tab(scene, "Graphics").get_child_count(), 5, "Graphics: aa/shadows/ssao/glow + text glitch")
+	assert_eq(
+		_tab(scene, "Graphics").get_child_count(), 5, "Graphics: aa/shadows/ssao/glow + text glitch"
+	)
 	assert_eq(_tab(scene, "Audio").get_child_count(), 5, "Audio: master + 4 channels")
 
 

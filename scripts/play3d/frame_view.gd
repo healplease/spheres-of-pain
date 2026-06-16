@@ -10,7 +10,7 @@ extends Node3D
 const FRAME_SHADER := preload("res://shaders/frame_veins.gdshader")
 const DANGER_SHADER := preload("res://shaders/danger_line.gdshader")
 
-var danger_line_mat: ShaderMaterial   # the bottom exit bar; DangerView drives its `phase`
+var danger_line_mat: ShaderMaterial  # the bottom exit bar; DangerView drives its `phase`
 
 
 ## `bounds` = (left_x, right_x, top_y, bot_y) in world space; `thick`/`depth` are the
@@ -39,7 +39,11 @@ func build(bounds: Vector4, vein_color: Color, thick: float, depth: float) -> vo
 	_add_bar(wall_mat, Vector3(t, span_y + t, depth), Vector3(left_x - t * 0.5, cy, 0.0))
 	_add_bar(wall_mat, Vector3(t, span_y + t, depth), Vector3(right_x + t * 0.5, cy, 0.0))
 	_add_bar(wall_mat, Vector3(span_x + t * 2.0, t, depth), Vector3(cx, top_y + t * 0.5, 0.0))
-	_add_bar(danger_line_mat, Vector3(span_x + t * 2.0, t, depth * 0.6), Vector3(cx, bot_y - t * 0.5, 0.0))
+	_add_bar(
+		danger_line_mat,
+		Vector3(span_x + t * 2.0, t, depth * 0.6),
+		Vector3(cx, bot_y - t * 0.5, 0.0)
+	)
 
 
 func _add_bar(mat: Material, size: Vector3, pos: Vector3) -> void:

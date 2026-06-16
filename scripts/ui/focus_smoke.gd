@@ -5,7 +5,7 @@ extends ColorRect
 ## focus (see button_smoke.gdshader). Purely cosmetic: ignores the mouse,
 ## never takes focus, and hides itself when focus leaves all buttons.
 
-const GROW_PX := 10.0      # how far the haze leaks past the button rect
+const GROW_PX := 10.0  # how far the haze leaks past the button rect
 const SLIDE_TIME := 0.18
 
 var _tween: Tween
@@ -32,7 +32,7 @@ func _follow(ctrl: Control) -> void:
 	if _tween != null:
 		_tween.kill()
 	if not visible:
-		visible = true           # first focus: appear in place, no slide-in
+		visible = true  # first focus: appear in place, no slide-in
 		global_position = rect.position
 		size = rect.size
 		return

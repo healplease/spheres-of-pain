@@ -25,7 +25,11 @@ func test_defaults() -> void:
 	var s := SettingsStore.new(TEST_PATH)
 	assert_false(s.get_aim_enabled(), "aim off by default")
 	assert_true(s.get_true_random(), "true random on by default")
-	assert_eq(s.get_control_scheme(), SettingsStore.ControlScheme.CLICK, "control scheme defaults to Click")
+	assert_eq(
+		s.get_control_scheme(),
+		SettingsStore.ControlScheme.CLICK,
+		"control scheme defaults to Click"
+	)
 	assert_false(s.has_control_scheme(), "control scheme unset on a fresh store")
 	assert_eq(s.get_resolution(), Vector2i(1920, 1080), "default resolution")
 	assert_eq(s.get_display_mode(), 3, "default mode = borderless fullscreen")
@@ -56,7 +60,7 @@ func test_persistence_roundtrip() -> void:
 	s.set_text_glitch(false)
 	s.set_volume(&"gameplay", 0.5)
 
-	var t := SettingsStore.new(TEST_PATH)   # fresh instance, same path
+	var t := SettingsStore.new(TEST_PATH)  # fresh instance, same path
 	assert_true(t.get_aim_enabled(), "aim persisted")
 	assert_false(t.get_true_random(), "true_random persisted")
 	assert_eq(t.get_control_scheme(), SettingsStore.ControlScheme.HOLD, "control scheme persisted")

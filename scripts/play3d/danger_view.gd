@@ -13,17 +13,17 @@ extends Node
 
 enum DangerTier { NONE, SLOW, FAST }
 
-const DANGER_BPM_SLOW := 67.0     # two rows from the line
-const DANGER_BPM_FAST := 80.0     # one row from the line
+const DANGER_BPM_SLOW := 67.0  # two rows from the line
+const DANGER_BPM_FAST := 80.0  # one row from the line
 const DANGER_LINE_AMBIENT := 1.7  # the line's resting pulse when safe (shader default)
 const DANGER_FADE := 1.0
-const VIG_SLIGHT := 0.45          # vignette intensity at two rows (rim only)
-const VIG_INTENSE := 1.0          # vignette intensity at one row (heavy injury)
-const VIG_EDGE_FAR := 0.62        # vignette confined to the screen rim
-const VIG_EDGE_NEAR := 0.42       # reaches further in for the one-row injury look
+const VIG_SLIGHT := 0.45  # vignette intensity at two rows (rim only)
+const VIG_INTENSE := 1.0  # vignette intensity at one row (heavy injury)
+const VIG_EDGE_FAR := 0.62  # vignette confined to the screen rim
+const VIG_EDGE_NEAR := 0.42  # reaches further in for the one-row injury look
 
-var _line_mat: ShaderMaterial   # the bottom miss-exit bar (danger_line.gdshader)
-var _vig_mat: ShaderMaterial    # the red injury vignette (danger_vignette.gdshader)
+var _line_mat: ShaderMaterial  # the bottom miss-exit bar (danger_line.gdshader)
+var _vig_mat: ShaderMaterial  # the red injury vignette (danger_vignette.gdshader)
 var _tween: Tween
 var _tier := DangerTier.NONE
 # Beat phase (radians) and the current blink rate (rad/s), integrated each frame and
@@ -60,15 +60,24 @@ func set_tier(rows_left: int, game_over: bool) -> void:
 	var tier := DangerTier.NONE
 	if not game_over:
 		match rows_left:
-			2: tier = DangerTier.SLOW
-			1: tier = DangerTier.FAST
+			2:
+				tier = DangerTier.SLOW
+			1:
+				tier = DangerTier.FAST
 	if tier == _tier:
 		return
 	_tier = tier
-	Log.info(Log.PLAY, "danger tier", {
-		"tier": DangerTier.keys()[tier],
-		"rows_to_danger": rows_left,
-	})
+	(
+		Log
+		. info(
+			Log.PLAY,
+			"danger tier",
+			{
+				"tier": DangerTier.keys()[tier],
+				"rows_to_danger": rows_left,
+			}
+		)
+	)
 
 	Sound.set_heartbeat_slow(tier == DangerTier.SLOW)
 	Sound.set_heartbeat_fast(tier == DangerTier.FAST)
@@ -102,8 +111,8 @@ func set_tier(rows_left: int, game_over: bool) -> void:
 func _tween_param(tw: Tween, mat: ShaderMaterial, param: String, to: float) -> void:
 	var from: float = mat.get_shader_parameter(param)
 	tw.tween_method(
-		func(v: float) -> void: mat.set_shader_parameter(param, v),
-		from, to, DANGER_FADE)
+		func(v: float) -> void: mat.set_shader_parameter(param, v), from, to, DANGER_FADE
+	)
 
 
 static func _bpm_to_speed(bpm: float) -> float:

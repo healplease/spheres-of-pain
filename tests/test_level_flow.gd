@@ -41,6 +41,44 @@ func test_controller_builds_board_from_level() -> void:
 	assert_eq(scene.model.count_colored(), 36, "level 1 layout: 9x4 spheres")
 
 
+func _count_value(model: GridModel, value: int) -> int:
+	var n := 0
+	for v in model.cells.values():
+		if v == value:
+			n += 1
+	return n
+
+
+func test_special_levels_build_without_error() -> void:
+	# Spawning the play scene runs the full controller: it builds the _specials map and
+	# assigns the swirl/pulse materials to every spin/bounce sphere via board._build_all.
+	# A missing dispatch key would crash here, so reaching the asserts proves the wiring.
+	for spec in [
+		{"idx": 11, "spin": 1, "bounce": 0, "colored": 35},
+		{"idx": 12, "spin": 0, "bounce": 1, "colored": 35},
+		{"idx": 15, "spin": 2, "bounce": 2, "colored": 68},
+	]:
+		var scene := _spawn_level(spec.idx)
+		await wait_physics_frames(2)
+		assert_eq(
+			_count_value(scene.model, GridModel.SPIN), spec.spin, "level %d spin count" % spec.idx
+		)
+		assert_eq(
+			_count_value(scene.model, GridModel.BOUNCE),
+			spec.bounce,
+			"level %d bounce count" % spec.idx
+		)
+		assert_eq(scene.model.count_colored(), spec.colored, "level %d coloured count" % spec.idx)
+		assert_false(scene.model.is_won(), "level %d not instantly won" % spec.idx)
+		# Every model cell — colours and specials alike — got a live sphere built for it.
+		assert_eq(
+			scene.board._spheres.size(),
+			scene.model.cells.size(),
+			"level %d board built all spheres" % spec.idx
+		)
+		# _spawn_level registered the scene with add_child_autofree; it's freed at teardown.
+
+
 func test_win_unlocks_next_and_shows_descend() -> void:
 	var scene := _spawn_level(1)
 	await wait_physics_frames(2)
@@ -64,6 +102,6 @@ func test_lose_offers_retry_without_unlock() -> void:
 func test_winning_last_level_offers_no_next() -> void:
 	var scene := _spawn_level(1)
 	await wait_physics_frames(2)
-	GameState.selected_index = GameState.LEVEL_COUNT  # pretend it was level 10
+	GameState.selected_index = GameState.LEVEL_COUNT  # pretend it was the last level
 	scene._end("test win", true)
 	assert_false(scene.next_button.visible, "no descend below the bottom")

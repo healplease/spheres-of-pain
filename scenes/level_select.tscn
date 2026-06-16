@@ -131,6 +131,33 @@ custom_minimum_size = Vector2(200, 92)
 layout_mode = 2
 text = "10"
 
+[node name="PageNav" type="HBoxContainer" parent="Center/VBox"]
+layout_mode = 2
+size_flags_horizontal = 4
+theme_override_constants/separation = 20
+alignment = 1
+
+[node name="PrevButton" type="Button" parent="Center/VBox/PageNav"]
+custom_minimum_size = Vector2(120, 48)
+layout_mode = 2
+theme_override_font_sizes/font_size = 20
+text = "‹ PREV"
+
+[node name="PageLabel" type="Label" parent="Center/VBox/PageNav"]
+custom_minimum_size = Vector2(160, 0)
+layout_mode = 2
+theme_override_colors/font_color = Color(0.78, 0.72, 0.65, 1)
+theme_override_font_sizes/font_size = 22
+text = "PAGE 1 / 1"
+horizontal_alignment = 1
+vertical_alignment = 1
+
+[node name="NextButton" type="Button" parent="Center/VBox/PageNav"]
+custom_minimum_size = Vector2(120, 48)
+layout_mode = 2
+theme_override_font_sizes/font_size = 20
+text = "NEXT ›"
+
 [node name="BackButton" type="Button" parent="Center/VBox"]
 custom_minimum_size = Vector2(200, 48)
 layout_mode = 2

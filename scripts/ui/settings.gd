@@ -11,17 +11,17 @@ extends Control
 
 const TITLE_FONT := 22
 const CONTROL_WIDTH := 280.0
-const VALUE_WIDTH := 56.0   # fixed read-out width so the slider edge doesn't jiggle as digits change
+const VALUE_WIDTH := 56.0  # fixed read-out width so the slider edge doesn't jiggle as digits change
 const HintScene := preload("res://scenes/ui/hint.tscn")
+
+var _resolution_option: OptionButton  # disabled unless display mode is Windowed
+var _hint: Hint  # floating tooltip, follows the cursor over a title
 
 @onready var tab_gameplay: VBoxContainer = $Center/VBox/Tabs/Gameplay
 @onready var tab_display: VBoxContainer = $Center/VBox/Tabs/Display
 @onready var tab_graphics: VBoxContainer = $Center/VBox/Tabs/Graphics
 @onready var tab_audio: VBoxContainer = $Center/VBox/Tabs/Audio
 @onready var back_button: Button = $Center/VBox/BackButton
-
-var _resolution_option: OptionButton   # disabled unless display mode is Windowed
-var _hint: Hint                        # floating tooltip, follows the cursor over a title
 
 
 func _ready() -> void:
@@ -46,6 +46,7 @@ func _unhandled_input(event: InputEvent) -> void:
 
 # --- row factory ------------------------------------------------------------
 
+
 ## Append a setting row (title + control on one line) to a tab. Hovering the title —
 ## not the control — reveals the description in the cursor-following Hint.
 func _add_row(tab: VBoxContainer, title: String, control: Control, desc: String) -> void:
@@ -56,7 +57,7 @@ func _add_row(tab: VBoxContainer, title: String, control: Control, desc: String)
 	label.text = title
 	label.add_theme_font_size_override("font_size", TITLE_FONT)
 	label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	label.mouse_filter = Control.MOUSE_FILTER_STOP   # so the title receives hover events
+	label.mouse_filter = Control.MOUSE_FILTER_STOP  # so the title receives hover events
 	if not desc.is_empty():
 		label.mouse_entered.connect(func() -> void: _hint.show_hint(desc))
 		label.mouse_exited.connect(_hint.hide_hint)
@@ -79,6 +80,7 @@ func _make_check(pressed: bool, on_toggled: Callable) -> CheckButton:
 
 # --- Gameplay ---------------------------------------------------------------
 
+
 func _build_gameplay_tab() -> void:
 	# Shooting controls — id == the SettingsStore.ControlScheme value. Seed from the
 	# resolved read-through (not store.get_*) so an unset value shows the platform default.
@@ -86,21 +88,41 @@ func _build_gameplay_tab() -> void:
 	ctrl.add_item("Click to shoot", SettingsStore.ControlScheme.CLICK)
 	ctrl.add_item("Hold to aim, release to shoot", SettingsStore.ControlScheme.HOLD)
 	ctrl.select(ctrl.get_item_index(Settings.control_scheme()))
-	ctrl.item_selected.connect(func(i: int) -> void:
-		Settings.set_control_scheme(ctrl.get_item_id(i)))
-	_add_row(tab_gameplay, "Shooting controls", ctrl,
-		"Click: tap to fire instantly. Hold: press to aim, release to shoot — better for touch and precise shots. In Hold, the aim beam shows only while you hold.")
+	ctrl.item_selected.connect(
+		func(i: int) -> void: Settings.set_control_scheme(ctrl.get_item_id(i))
+	)
+	_add_row(
+		tab_gameplay,
+		"Shooting controls",
+		ctrl,
+		(
+			"Click: tap to fire instantly. Hold: press to aim, release to shoot — "
+			+ "better for touch and precise shots. In Hold, the aim beam shows only while you hold."
+		)
+	)
 
 	var aim := _make_check(Settings.aim_enabled(), Settings.set_aim_enabled)
-	_add_row(tab_gameplay, "Enable aim", aim,
-		"Show the trajectory beam that helps you aim the bubble shot. Toggle it in-game with [A].")
+	_add_row(
+		tab_gameplay,
+		"Enable aim",
+		aim,
+		"Show the trajectory beam that helps you aim the bubble shot. Toggle it in-game with [A]."
+	)
 
 	var rnd := _make_check(Settings.true_random(), Settings.set_true_random)
-	_add_row(tab_gameplay, "True random", rnd,
-		"On: every bubble is independently random. Off: bubbles are dealt from a shuffled bag so colours come up evenly — a gentler, fairer distribution.")
+	_add_row(
+		tab_gameplay,
+		"True random",
+		rnd,
+		(
+			"On: every bubble is independently random. Off: bubbles are dealt from a "
+			+ "shuffled bag so colours come up evenly — a gentler, fairer distribution."
+		)
+	)
 
 
 # --- Display ----------------------------------------------------------------
+
 
 func _build_display_tab() -> void:
 	# Display mode — id == the Window.Mode value so we read it straight back.
@@ -109,11 +131,17 @@ func _build_display_tab() -> void:
 	mode.add_item("Borderless fullscreen", Window.MODE_FULLSCREEN)
 	mode.add_item("Exclusive fullscreen", Window.MODE_EXCLUSIVE_FULLSCREEN)
 	mode.select(mode.get_item_index(Settings.store.get_display_mode()))
-	mode.item_selected.connect(func(i: int) -> void:
-		Settings.set_display_mode(mode.get_item_id(i))
-		_refresh_resolution_enabled())
-	_add_row(tab_display, "Display mode", mode,
-		"Borderless is the default. Exclusive may flicker or revert on some drivers.")
+	mode.item_selected.connect(
+		func(i: int) -> void:
+			Settings.set_display_mode(mode.get_item_id(i))
+			_refresh_resolution_enabled()
+	)
+	_add_row(
+		tab_display,
+		"Display mode",
+		mode,
+		"Borderless is the default. Exclusive may flicker or revert on some drivers."
+	)
 
 	# Resolution — metadata holds the Vector2i; only meaningful in Windowed mode.
 	var res := OptionButton.new()
@@ -123,25 +151,33 @@ func _build_display_tab() -> void:
 		res.set_item_metadata(res.item_count - 1, r)
 		if r == current_res:
 			res.select(res.item_count - 1)
-	res.item_selected.connect(func(i: int) -> void:
-		Settings.set_resolution(res.get_item_metadata(i)))
+	res.item_selected.connect(
+		func(i: int) -> void: Settings.set_resolution(res.get_item_metadata(i))
+	)
 	_resolution_option = res
-	_add_row(tab_display, "Resolution", res,
-		"Applies in Windowed mode; fullscreen uses the monitor's native size.")
+	_add_row(
+		tab_display,
+		"Resolution",
+		res,
+		"Applies in Windowed mode; fullscreen uses the monitor's native size."
+	)
 	_refresh_resolution_enabled()
 
 	# V-sync
 	var vsync := _make_check(Settings.store.get_vsync(), Settings.set_vsync)
-	_add_row(tab_display, "V-sync", vsync,
-		"Vertical synchronization — trades a little latency to remove tearing.")
+	_add_row(
+		tab_display,
+		"V-sync",
+		vsync,
+		"Vertical synchronization — trades a little latency to remove tearing."
+	)
 
 	# FPS limit — id == the cap (0 = Unlimited).
 	var fps := OptionButton.new()
 	for v in SettingsStore.FPS_CHOICES:
 		fps.add_item("Unlimited" if v == 0 else str(v), v)
 	fps.select(fps.get_item_index(Settings.store.get_fps_limit()))
-	fps.item_selected.connect(func(i: int) -> void:
-		Settings.set_fps_limit(fps.get_item_id(i)))
+	fps.item_selected.connect(func(i: int) -> void: Settings.set_fps_limit(fps.get_item_id(i)))
 	_add_row(tab_display, "FPS limit", fps, "The upper limit of frames per second.")
 
 
@@ -152,6 +188,7 @@ func _refresh_resolution_enabled() -> void:
 
 # --- Graphics ---------------------------------------------------------------
 
+
 func _build_graphics_tab() -> void:
 	# Antialiasing — id == the SettingsStore.AA value.
 	var aa := OptionButton.new()
@@ -161,8 +198,7 @@ func _build_graphics_tab() -> void:
 	aa.add_item("MSAA 4x", SettingsStore.AA.MSAA_4X)
 	aa.add_item("MSAA 8x", SettingsStore.AA.MSAA_8X)
 	aa.select(aa.get_item_index(Settings.store.get_antialiasing()))
-	aa.item_selected.connect(func(i: int) -> void:
-		Settings.set_antialiasing(aa.get_item_id(i)))
+	aa.item_selected.connect(func(i: int) -> void: Settings.set_antialiasing(aa.get_item_id(i)))
 	_add_row(tab_graphics, "Antialiasing", aa, "Makes the edges of objects smoother.")
 
 	# Shadows — id == the SettingsStore.Shadows value.
@@ -171,27 +207,39 @@ func _build_graphics_tab() -> void:
 	sh.add_item("Low", SettingsStore.Shadows.LOW)
 	sh.add_item("High", SettingsStore.Shadows.HIGH)
 	sh.select(sh.get_item_index(Settings.store.get_shadows()))
-	sh.item_selected.connect(func(i: int) -> void:
-		Settings.set_shadows(sh.get_item_id(i)))
+	sh.item_selected.connect(func(i: int) -> void: Settings.set_shadows(sh.get_item_id(i)))
 	_add_row(tab_graphics, "Shadows", sh, "Quality of the directional light's shadows.")
 
 	# SSAO
 	var ssao := _make_check(Settings.store.get_ssao(), Settings.set_ssao)
-	_add_row(tab_graphics, "Ambient occlusion", ssao,
-		"Adds soft contact shadows in crevices (SSAO). Costs some performance.")
+	_add_row(
+		tab_graphics,
+		"Ambient occlusion",
+		ssao,
+		"Adds soft contact shadows in crevices (SSAO). Costs some performance."
+	)
 
 	# Glow / Bloom
 	var glow := _make_check(Settings.store.get_glow(), Settings.set_glow)
-	_add_row(tab_graphics, "Glow / Bloom", glow,
-		"The danger line, embers, and obsidian rims bloom against the dark.")
+	_add_row(
+		tab_graphics,
+		"Glow / Bloom",
+		glow,
+		"The danger line, embers, and obsidian rims bloom against the dark."
+	)
 
 	# Text glitch — the title shiver. Accessibility opt-out for motion sensitivity.
 	var tglitch := _make_check(Settings.text_glitch(), Settings.set_text_glitch)
-	_add_row(tab_graphics, "Text glitch", tglitch,
-		"Titles occasionally shudder and jitter. Turn off to keep all on-screen text perfectly still.")
+	_add_row(
+		tab_graphics,
+		"Text glitch",
+		tglitch,
+		"Titles occasionally shudder and jitter. Turn off to keep all on-screen text perfectly still."
+	)
 
 
 # --- Audio ------------------------------------------------------------------
+
 
 func _build_audio_tab() -> void:
 	_add_slider(tab_audio, "Master", &"master", "Overall volume.")
@@ -217,9 +265,11 @@ func _add_slider(tab: VBoxContainer, title: String, channel: StringName, desc: S
 	pct.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
 	pct.text = _percent(s.value)
 
-	s.value_changed.connect(func(v: float) -> void:
-		Settings.set_volume(channel, v)
-		pct.text = _percent(v))
+	s.value_changed.connect(
+		func(v: float) -> void:
+			Settings.set_volume(channel, v)
+			pct.text = _percent(v)
+	)
 
 	# Wrap slider + read-out as one control so the row factory lays them out together.
 	var box := HBoxContainer.new()

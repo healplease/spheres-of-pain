@@ -50,7 +50,7 @@ func test_bag_rebuilds_when_present_shrinks() -> void:
 	# rebuild to the new size and never serve the vanished colour again.
 	var bag := _bag(false, 3)
 	var present: Array[int] = [0, 1, 2]
-	bag.next(present)   # builds a 9-item bag for {0,1,2}
+	bag.next(present)  # builds a 9-item bag for {0,1,2}
 	var shrunk: Array[int] = [0, 1]
 	var counts := {0: 0, 1: 0}
 	for i in 4:
