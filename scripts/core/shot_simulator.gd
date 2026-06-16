@@ -60,6 +60,9 @@ func simulate(start: Vector2, dir: Vector2) -> Dictionary:
 	if collided == null:
 		return {"path": pts, "miss": true}
 	var cell: Vector2i = _snap_cell(p, collided)
+	if cell.x < 0:                # no legal attach cell -> treat as a miss rather
+		pts.append(p)             # than overwriting/floating a sphere (see _snap_cell)
+		return {"path": pts, "miss": true}
 	pts.append(Hex.cell_to_world(cell, origin, diameter))
 	return {"path": pts, "cell": cell, "miss": false}
 
@@ -101,5 +104,10 @@ func _snap_cell(p: Vector2, collided) -> Vector2i:
 			bestd = d
 			best = c
 	if best == null:
-		return Vector2i(int(clampf(base.x, 0, columns - 1)), maxi(base.y, 0))
+		# Every candidate was occupied, out of bounds, or disconnected from the
+		# cluster. There is no legal cell to attach to, so report failure with an
+		# invalid sentinel (x < 0); simulate() turns this into a miss. Returning a
+		# clamped base cell here would let attach() overwrite a settled sphere or
+		# strand a neighbourless one (find_orphans only runs on a pop).
+		return Vector2i(-1, -1)
 	return best

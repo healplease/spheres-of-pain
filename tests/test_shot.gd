@@ -57,3 +57,21 @@ func test_near_pass_still_hits() -> void:
 	var sim := s.simulate(Vector2(654.0 - 30.0, 690), Vector2(0, -1))
 	assert_false(sim.get("miss", true), "a 30px pass is inside the hitbox and hits")
 	assert_true(sim.has("cell"), "a hit returns a snap cell")
+
+
+# --- no legal attach cell -> miss, never a silent overwrite ----------------------
+
+func test_no_legal_attach_cell_returns_sentinel() -> void:
+	# A fully-enclosed impact: the collision cell and every candidate neighbour are
+	# occupied, so there is no empty cell to attach to. _snap_cell must report failure
+	# (x < 0) rather than returning an occupied/disconnected cell that attach() would
+	# silently overwrite or strand.
+	var s := _make_sim()
+	var collided := Vector2i(5, 5)
+	s.model.cells[collided] = 0
+	for nb in Hex.neighbors(collided):
+		s.model.cells[nb] = 0
+	var p := Hex.cell_to_world(collided, s.origin, s.diameter)
+	var cell := s._snap_cell(p, collided)
+	assert_true(cell.x < 0, "no legal attach cell -> invalid sentinel")
+	assert_false(s.model.cells.has(cell), "sentinel is not a settled sphere")
