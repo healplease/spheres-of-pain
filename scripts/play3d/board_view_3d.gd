@@ -157,13 +157,16 @@ func _play_pop(mi: MeshInstance3D) -> void:
 		return
 	# Sound is driven once per cluster by the controller (Sound.play_cluster_pop),
 	# not per sphere — a big clear would otherwise machine-gun the pop sample.
-	# Materials are shared across same-colour spheres; duplicate so fading this
-	# one doesn't fade the others.
-	var m := mi.material_override.duplicate() as StandardMaterial3D
-	m.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
-	mi.material_override = m
 	var tw := mi.create_tween()
 	tw.set_parallel(true)
 	tw.tween_property(mi, "scale", Vector3.ONE * POP_SCALE, POP_TIME).set_ease(Tween.EASE_OUT)
-	tw.tween_property(m, "albedo_color:a", 0.0, POP_TIME).set_ease(Tween.EASE_OUT)
+	# Alpha fade needs a per-instance StandardMaterial3D (shared across same-colour
+	# spheres, so duplicate it). Black/obstacle spheres carry a ShaderMaterial, not a
+	# StandardMaterial3D — only breakables pop today, but guard the cast so a future
+	# rule that pops one can't null-deref; it just scales out without the fade.
+	var m := mi.material_override.duplicate() as StandardMaterial3D
+	if m != null:
+		m.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+		mi.material_override = m
+		tw.tween_property(m, "albedo_color:a", 0.0, POP_TIME).set_ease(Tween.EASE_OUT)
 	tw.finished.connect(mi.queue_free)
