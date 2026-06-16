@@ -105,6 +105,10 @@ var _preview_mesh := ImmediateMesh.new()
 var _preview_mat: StandardMaterial3D
 var _aim2d := Vector2(0, -1)
 var _last_sim: Dictionary = {}
+# The trajectory only changes when the aim moves or the board changes, so we
+# re-simulate on those events (mouse motion, shot resolution, ray shown) rather
+# than every frame. simulate() is a heavy per-step loop; running it idle was waste.
+var _aim_dirty := true
 var game_over := false
 var aim_ray_enabled := false   # trajectory preview hidden by default; [A] toggles
 # Whether the ray should currently show, before the aim_ray_enabled / game_over gates.
@@ -197,6 +201,12 @@ func _ready() -> void:
 	_build_frame()
 	_place_camera()
 	_fit_embers()
+	# Seed an initial aim + trajectory now that the camera is framed, so the gun can
+	# fire and the ray can show before the first _process frame. Afterwards we only
+	# re-simulate when the aim or board changes (see _aim_dirty / _input / _on_landed).
+	_update_aim()
+	_last_sim = sim.simulate(muzzle2d, _aim2d)
+	_aim_dirty = false
 	get_viewport().size_changed.connect(_place_camera)
 	# Live-update glow/SSAO/shadows if the player changes Graphics settings while a level runs.
 	Settings.graphics_changed.connect(_apply_graphics_settings)
@@ -245,10 +255,13 @@ func _process(delta: float) -> void:
 	_advance_danger_pulse(delta)   # keeps throbbing through game-over fade-out too
 	if game_over:
 		return
-	_update_aim()
-	_last_sim = sim.simulate(muzzle2d, _aim2d)   # keep current for _on_fired even if the ray is hidden
-	if preview.visible:                          # in Hold the ray is hidden most of the time — skip the rebuild
-		_update_preview(_last_sim.path)
+	if _aim_dirty:
+		# Aim or board changed since last sim — refresh the cached trajectory. _on_fired
+		# re-aims on the actual shot, so a stale path between events is harmless.
+		_last_sim = sim.simulate(muzzle2d, _aim2d)
+		_aim_dirty = false
+		if preview.visible:   # in Hold the ray is hidden most of the time — skip the rebuild
+			_update_preview(_last_sim.path)
 
 
 # --- aim / preview ------------------------------------------------------------
@@ -290,6 +303,8 @@ func _update_preview(path2d: PackedVector2Array) -> void:
 ## this, so the ray can never get stuck on or hidden.
 func _update_preview_visibility() -> void:
 	preview.visible = aim_ray_enabled and _aim_active and not game_over
+	if preview.visible:
+		_aim_dirty = true   # rebuild the ray mesh from a fresh sim now that it shows
 
 
 ## Hold scheme: the fire button went down (active) or up (inactive). Drives the ray so
@@ -527,6 +542,12 @@ func _exit_tree() -> void:
 
 
 func _input(event: InputEvent) -> void:
+	# Aim follows the pointer, so recompute it on motion (event-driven) rather than
+	# polling every frame; the trajectory re-simulates next frame via _aim_dirty.
+	if event is InputEventMouseMotion:
+		_update_aim()
+		_aim_dirty = true
+		return
 	# Fullscreen has no window chrome — Esc leaves to level select (same as the
 	# HUD door button), so the two exits behave identically.
 	if event.is_action_pressed("ui_cancel"):
@@ -659,6 +680,7 @@ func _on_landed(cell: Vector2i, color: int) -> void:
 			return
 		_check_end()
 		return
+	_aim_dirty = true   # the board changed; the cached trajectory must be refreshed
 	shooter.enabled = true
 
 
