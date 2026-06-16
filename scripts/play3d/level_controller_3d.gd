@@ -25,8 +25,6 @@ const BACKDROP_OFFSET := 12.0  # metres the abyss backdrop sits behind the board
 const MUZZLE_GAP_ROWS := 0.3   # gun below the danger line (was 0.6 — hand-tuned 690)
 const EXIT_GAP_ROWS := 0.6     # red miss-exit bar below the gun
 
-const DANGER_SHADER := preload("res://shaders/danger_line.gdshader")
-const FRAME_SHADER := preload("res://shaders/frame_veins.gdshader")
 
 # Banner / lore / end-panel fade timings (seconds).
 const FADE_IN_TIME := 0.45
@@ -442,53 +440,16 @@ func _frame_bounds(pad: float) -> Vector4:
 	return Vector4(left_x, right_x, top_y, bot_y)
 
 
-## Build a raised border so the player can read where the ball bounces. Left,
-## right and top are solid bounce walls; the bottom is a distinct red exit line
-## (the ball falls out there — it does not bounce). Lives directly under the
-## controller, NOT under Board (which frees its children on every rebuild).
+## Build the bounce/exit border via a FrameView node (under the controller, NOT under
+## Board, which frees its children on every rebuild). The frame's red bottom bar
+## material is handed to the DangerView to pulse; ember veins take the level's tint.
 func _build_frame() -> void:
-	var b := _frame_bounds(0.0)
-	var left_x := b.x
-	var right_x := b.y
-	var top_y := b.z
-	var bot_y := b.w
-	var cx := (left_x + right_x) * 0.5
-	var cy := (top_y + bot_y) * 0.5
-	var span_x := right_x - left_x
-	var span_y := top_y - bot_y
-	var t := FRAME_THICK
-
-	# Obsidian bars with ember veins crawling through them, tinted to the level's
-	# ember colour so the frame belongs to the same palette as the particles.
 	var theme := _level if _level != null else LevelResource.new()
-	var wall_mat := ShaderMaterial.new()
-	wall_mat.shader = FRAME_SHADER
-	wall_mat.set_shader_parameter("vein_color", theme.ember_color)
-
-	var exit_mat := ShaderMaterial.new()
-	exit_mat.shader = DANGER_SHADER
-	_danger_line_mat = exit_mat   # _advance_danger_pulse drives its `phase` (blink rate)
-
-	var frame := Node3D.new()
+	var frame := FrameView.new()
 	frame.name = "Frame"
 	add_child(frame)
-
-	# Bars are placed so their inner face aligns with the bounce surface (offset
-	# outward by half the bar thickness); side/top bars overlap at the corners.
-	_add_bar(frame, wall_mat, Vector3(t, span_y + t, FRAME_DEPTH), Vector3(left_x - t * 0.5, cy, 0.0))
-	_add_bar(frame, wall_mat, Vector3(t, span_y + t, FRAME_DEPTH), Vector3(right_x + t * 0.5, cy, 0.0))
-	_add_bar(frame, wall_mat, Vector3(span_x + t * 2.0, t, FRAME_DEPTH), Vector3(cx, top_y + t * 0.5, 0.0))
-	_add_bar(frame, exit_mat, Vector3(span_x + t * 2.0, t, FRAME_DEPTH * 0.6), Vector3(cx, bot_y - t * 0.5, 0.0))
-
-
-func _add_bar(parent: Node3D, mat: Material, size: Vector3, pos: Vector3) -> void:
-	var mesh := BoxMesh.new()
-	mesh.size = size
-	var mi := MeshInstance3D.new()
-	mi.mesh = mesh
-	mi.material_override = mat
-	mi.position = pos
-	parent.add_child(mi)
+	frame.build(_frame_bounds(0.0), theme.ember_color, FRAME_THICK, FRAME_DEPTH)
+	_danger_line_mat = frame.danger_line_mat
 
 
 ## Leaving the game screen (Esc to the menu, retry, next, any scene change) must cut
