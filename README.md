@@ -22,10 +22,9 @@ unit-tested under `tests/`). The 3D views only reflect the model — they never 
 ## First-time setup
 
 > [!IMPORTANT]
-> `addons/` is **gitignored**, so a fresh clone ships **without any editor plugins**. `project.godot`
-> already references all four (as enabled plugins + autoloads), so if you open the project before
-> installing them, Godot will report *missing autoload / plugin failed to load* errors.
-> **Install the addons first, then open the project.**
+> `addons/` is **gitignored**, so a fresh clone ships **without GUT**. `project.godot` references it
+> as an enabled editor plugin, so install it before running the test suite. The game itself has **no
+> addon dependencies** — it runs and exports without anything in `addons/`.
 
 ### 1. Clone
 
@@ -34,25 +33,20 @@ git clone <repo-url> spheres-of-pain
 cd spheres-of-pain
 ```
 
-### 2. Install the addons
+### 2. Install GUT (only needed for the tests)
 
-Install each at the **exact version** below (UIDs/autoloads in `project.godot` are pinned to these
-releases). Easiest path is the in-editor **AssetLib** tab — search the name, Download, Install. Each
-must land at the listed path.
+GUT is the project's **only** addon. Install it at the **exact version** below — easiest via the
+in-editor **AssetLib** tab (search the name, Download, Install). It must land at the listed path. If
+you only want to play or export the game, you can skip this step.
 
 | Addon | Version | AssetLib search | Source | Install path | Needed for |
 | --- | --- | --- | --- | --- | --- |
 | **GUT** (Godot Unit Test) | 9.6.0 | `Gut` | [bitwes/Gut](https://github.com/bitwes/Gut) | `addons/gut/` | Running the unit tests |
-| **Phantom Camera** | 0.11 | `Phantom Camera` | [ramokz/phantom-camera](https://github.com/ramokz/phantom-camera) | `addons/phantom_camera/` | **Required** — autoload `PhantomCameraManager` |
-| **Runtime Debug Tools** | 1.2.0 | `Runtime Debug Tools` | [bbbscarter/GodotRuntimeDebugTools](https://github.com/bbbscarter/GodotRuntimeDebugTools) | `addons/runtime_debug_tools/` | **Required** — autoload `RuntimeDebugTools` |
-| **LimboConsole** | 0.4.1 | `LimboConsole` | [limbonaut/limbo_console](https://github.com/limbonaut/limbo_console) | `addons/limbo_console/` | **Required** — autoload + in-game dev console |
 
 > [!NOTE]
-> **Phantom Camera**, **Runtime Debug Tools**, and **LimboConsole** are enabled plugins with
-> autoloads in `project.godot`, so the project won't start cleanly unless all three are installed.
-> **GUT** is an enabled editor plugin used by the test suite. Installing each fresh from the AssetLib
-> lands it at the path above with correct internal references. Open the in-game console with the
-> backtick (`` ` ``) key.
+> **GUT** is an enabled editor plugin used only by the test suite — the game itself has no addon
+> dependencies. Installing it fresh from the AssetLib lands it at `addons/gut/` with correct internal
+> references.
 
 ### 3. Install the lint/format tooling (recommended)
 
@@ -67,9 +61,9 @@ This gives you the `gdformat`, `gdlint`, and `gdparse` CLIs (see [Code quality](
 
 ### 4. Open the project
 
-Open `project.godot` in Godot 4.6. With the addons in place, the editor should load with no plugin
-or autoload errors. If you see a plugin error, re-check that the addon exists at the path above and
-is enabled under *Project Settings → Plugins*.
+Open `project.godot` in Godot 4.6. The editor should load with no errors. If you installed GUT and
+see a plugin error, re-check that it exists at `addons/gut/` and is enabled under
+*Project Settings → Plugins*.
 
 ---
 
