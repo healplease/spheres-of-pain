@@ -102,8 +102,15 @@ func sync(instant_cells: Array = [], pop_origin = null) -> float:
 	return settle
 
 
+## Single source of truth for the colour -> material map, shared by the board, the
+## projectile, and the muzzle so they can never drift. BLACK gets the obsidian
+## shader; any other id wraps into the palette materials.
+static func mat_for(mats: Array, black: Material, color: int) -> Material:
+	return black if color == GridModel.BLACK else mats[color % mats.size()]
+
+
 func _mat_for(color: int) -> Material:
-	return _black_mat if color == GridModel.BLACK else _mats[color % _mats.size()]
+	return BoardView3D.mat_for(_mats, _black_mat, color)
 
 
 func _make_sphere(color: int) -> MeshInstance3D:

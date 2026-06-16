@@ -578,7 +578,7 @@ func _rand_color() -> int:
 
 
 func _mat_for(color: int) -> Material:
-	return _black_mat if color < 0 else _mats[color % _mats.size()]
+	return BoardView3D.mat_for(_mats, _black_mat, color)
 
 
 # --- shot results -------------------------------------------------------------
