@@ -39,21 +39,10 @@ const FADE_OUT_TIME := 0.7
 const TEXT_BG_PAD_Y := 16.0        # tagline (small font)
 const TITLE_BG_PAD_Y := 54.0       # title / verdict (large font)
 
-# Danger visuals (bottom-line blink + red injury vignette), driven off the same
-# tier as the heartbeat audio and faded in/out over DANGER_FADE — in lock-step
-# with the pulses. The line/vignette throb at the tier's BPM (rad/s = TAU*bpm/60).
-const DANGER_BPM_SLOW := 67.0     # two rows from the line
-const DANGER_BPM_FAST := 80.0     # one row from the line
-const DANGER_LINE_AMBIENT := 1.7  # the line's resting pulse when safe (shader default)
-const DANGER_FADE := 1.0
-const VIG_SLIGHT := 0.45          # vignette intensity at two rows (rim only)
-const VIG_INTENSE := 1.0          # vignette intensity at one row (heavy injury)
-const VIG_EDGE_FAR := 0.62        # vignette confined to the screen rim
-const VIG_EDGE_NEAR := 0.42       # reaches further in for the one-row injury look
+# Danger visuals (bottom-line blink + red injury vignette) live in DangerView,
+# which owns the tier logic and is driven via _update_heartbeat below.
 const BANNER_PALE := Color(0.82, 0.78, 0.72, 1.0)   # intro / win verdict colour
 const BANNER_RED := Color(0.86, 0.13, 0.12, 1.0)    # lose verdict colour
-
-enum DangerTier { NONE, SLOW, FAST }
 
 @export var diameter := 56.0
 @export_range(1, 10) var num_colors := 5  # capped at BoardView3D.PALETTE.size()
@@ -117,17 +106,11 @@ var aim_ray_enabled := false   # trajectory preview hidden by default; [A] toggl
 var _aim_active := true
 var _shots_fired := 0          # HUD counter; bumped on every shot
 
-# Danger-visual state: the materials we drive, the single tween that fades them,
-# and the current tier (so re-calls at the same tier don't restart the 1 s fade).
+# The danger subsystem (heartbeat audio + line/vignette shaders) lives in DangerView.
+# _build_frame creates the bottom-bar material into _danger_line_mat; _ready hands it
+# and the vignette material to the view, then set_tier() is driven via _update_heartbeat.
+var _danger_view: DangerView
 var _danger_line_mat: ShaderMaterial   # the bottom miss-exit bar (danger_line.gdshader)
-var _danger_vig_mat: ShaderMaterial    # the red injury vignette (danger_vignette.gdshader)
-var _danger_tween: Tween
-var _danger := DangerTier.NONE
-# Beat phase (radians) and the current blink rate (rad/s), integrated each frame
-# and pushed to both danger shaders. Accumulating phase on the CPU keeps the throb
-# continuous while the rate is tweened — see _advance_danger_pulse / _set_danger.
-var _danger_phase := 0.0
-var _danger_speed := DANGER_LINE_AMBIENT
 
 
 func to3d(p: Vector2) -> Vector3:
@@ -216,12 +199,11 @@ func _ready() -> void:
 	menu_button.pressed.connect(GameState.go_to_level_select)
 	door_button.pressed.connect(GameState.go_to_level_select)
 
-	# HUD: centre name (an authored title, or "THE PIT" in free play) + the red
-	# vignette material the danger tier drives. Seed every uniform we tween so
-	# get_shader_parameter() returns a real float for the fade's start value.
-	_danger_vig_mat = ($Dread/DangerVignette as ColorRect).material
-	_danger_vig_mat.set_shader_parameter("intensity", 0.0)
-	_danger_vig_mat.set_shader_parameter("edge", VIG_EDGE_FAR)
+	# Danger subsystem: hand the bottom-line bar material (built in _build_frame) and
+	# the red vignette material to a DangerView, which owns the heartbeat + shaders.
+	_danger_view = DangerView.new()
+	add_child(_danger_view)
+	_danger_view.setup(_danger_line_mat, ($Dread/DangerVignette as ColorRect).material)
 	level_name_label.text = _level.title if _level != null else "THE PIT"
 
 	_update_status()
@@ -251,8 +233,8 @@ func _ready() -> void:
 		Log.info(Log.PLAY, "autoplay enabled")
 
 
-func _process(delta: float) -> void:
-	_advance_danger_pulse(delta)   # keeps throbbing through game-over fade-out too
+func _process(_delta: float) -> void:
+	# The danger pulse advances in DangerView's own _process (throbs through game over).
 	if game_over:
 		return
 	if _aim_dirty:
@@ -690,90 +672,14 @@ func _validate_load() -> void:
 
 const ROWS_TO_DANGER_UNSET := 0x7fffffff   # "not supplied" sentinel for _update_heartbeat
 
-## Map how close the field is to the lose line onto a danger tier, then route it to
-## BOTH the audio (the two heartbeats) and the visuals (the bottom-line blink rate
-## and the red injury vignette) so they stay locked together. SLOW at exactly two
-## rows, FAST at one; anything else — safe, won, or lost (game_over) — is NONE.
-## Called after every shot resolves and when the game ends. `rows_left` lets the
-## caller pass an already-computed rows_to_danger() to avoid a redundant whole-board
-## max_row() scan; omit it and we compute it here.
+## Forward the field's proximity to the lose line to the DangerView, which owns the
+## tier logic + audio/visual escalation. Called after every shot and at game end.
+## `rows_left` lets the caller pass an already-computed rows_to_danger() to avoid a
+## redundant whole-board max_row() scan; omit it and we compute it here.
 func _update_heartbeat(rows_left: int = ROWS_TO_DANGER_UNSET) -> void:
 	if rows_left == ROWS_TO_DANGER_UNSET:
 		rows_left = model.rows_to_danger()
-	var tier := DangerTier.NONE
-	if not game_over:
-		match rows_left:
-			2: tier = DangerTier.SLOW
-			1: tier = DangerTier.FAST
-	_set_danger(tier)
-
-
-## Apply a danger tier. No-op if unchanged, so the per-shot re-calls don't restart
-## the 1 s fade. Audio toggles stay independent (escalation: the slow heartbeat
-## fades out as the fast fades in). The visuals fade over DANGER_FADE on a single
-## tween, killed and rebuilt on each change so a 2->1 escalation transitions cleanly.
-func _set_danger(tier: DangerTier) -> void:
-	if tier == _danger:
-		return
-	_danger = tier
-	Log.info(Log.PLAY, "danger tier", {
-		"tier": DangerTier.keys()[tier],
-		"rows_to_danger": model.rows_to_danger(),
-		"max_row": model.max_row(),
-	})
-
-	Sound.set_heartbeat_slow(tier == DangerTier.SLOW)
-	Sound.set_heartbeat_fast(tier == DangerTier.FAST)
-
-	# Per-tier targets: the vignette's intensity/reach, and the shared blink speed
-	# (the bottom line and the vignette throb at the same BPM).
-	var vig_intensity := 0.0
-	var vig_edge := VIG_EDGE_FAR
-	var line_speed := DANGER_LINE_AMBIENT
-	match tier:
-		DangerTier.SLOW:
-			vig_intensity = VIG_SLIGHT
-			line_speed = _bpm_to_speed(DANGER_BPM_SLOW)
-		DangerTier.FAST:
-			vig_intensity = VIG_INTENSE
-			vig_edge = VIG_EDGE_NEAR
-			line_speed = _bpm_to_speed(DANGER_BPM_FAST)
-
-	if _danger_tween and _danger_tween.is_valid():
-		_danger_tween.kill()
-	var tw := create_tween().set_parallel(true)
-	_tween_param(tw, _danger_vig_mat, "intensity", vig_intensity)
-	_tween_param(tw, _danger_vig_mat, "edge", vig_edge)
-	# Ramp the blink *rate*; _advance_danger_pulse integrates it into a continuous
-	# phase, so the line/vignette never spike as the BPM changes (the old bug was
-	# tweening sin(TIME * speed) directly — the big TIME amplified the rate change).
-	tw.tween_property(self, "_danger_speed", line_speed, DANGER_FADE)
-	_danger_tween = tw
-
-
-## Advance the shared heartbeat phase and push it to both danger shaders. Runs every
-## frame (including through the game-over fade) so the throb stays smooth no matter
-## how _danger_speed is being tweened. fmod keeps the phase small for float precision.
-func _advance_danger_pulse(delta: float) -> void:
-	_danger_phase = fmod(_danger_phase + _danger_speed * delta, TAU)
-	if _danger_line_mat:
-		_danger_line_mat.set_shader_parameter("phase", _danger_phase)
-	if _danger_vig_mat:
-		_danger_vig_mat.set_shader_parameter("phase", _danger_phase)
-
-
-## Tween one float shader uniform from its current value to `to` over DANGER_FADE,
-## as a parallel leg of `tw`. The uniform must already be seeded (see _ready /
-## _build_frame) so the start value reads back as a float.
-func _tween_param(tw: Tween, mat: ShaderMaterial, param: String, to: float) -> void:
-	var from: float = mat.get_shader_parameter(param)
-	tw.tween_method(
-		func(v: float) -> void: mat.set_shader_parameter(param, v),
-		from, to, DANGER_FADE)
-
-
-static func _bpm_to_speed(bpm: float) -> float:
-	return TAU * bpm / 60.0
+	_danger_view.set_tier(rows_left, game_over)
 
 
 # --- end state ----------------------------------------------------------------
