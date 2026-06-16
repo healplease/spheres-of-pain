@@ -26,21 +26,8 @@ const MUZZLE_GAP_ROWS := 0.3   # gun below the danger line (was 0.6 — hand-tun
 const EXIT_GAP_ROWS := 0.6     # red miss-exit bar below the gun
 
 
-# Banner / lore / end-panel fade timings (seconds).
-const FADE_IN_TIME := 0.45
-const FADE_OUT_TIME := 0.7
-# Soft black backdrop behind the centre text: the bar hugs each line's measured
-# text height with this much vertical margin above and below, and fades out exactly
-# over that margin (so the text sits on solid black, symmetric top and bottom). The
-# big title font wants a much taller plate than the small tagline (kept as far as it
-# can go without the title bar reaching down into the tagline's bar during the intro).
-const TEXT_BG_PAD_Y := 16.0        # tagline (small font)
-const TITLE_BG_PAD_Y := 54.0       # title / verdict (large font)
-
-# Danger visuals (bottom-line blink + red injury vignette) live in DangerView,
-# which owns the tier logic and is driven via _update_heartbeat below.
-const BANNER_PALE := Color(0.82, 0.78, 0.72, 1.0)   # intro / win verdict colour
-const BANNER_RED := Color(0.86, 0.13, 0.12, 1.0)    # lose verdict colour
+# The intro/end overlay (banner, lore, choice panel, fades) lives in CenterBanner;
+# the danger heartbeat/visuals live in DangerView. Both are driven from here.
 
 @export var diameter := 56.0
 @export_range(1, 10) var num_colors := 5  # capped at BoardView3D.PALETTE.size()
@@ -109,6 +96,7 @@ var _shots_fired := 0          # HUD counter; bumped on every shot
 # and the vignette material to the view, then set_tier() is driven via _update_heartbeat.
 var _danger_view: DangerView
 var _danger_line_mat: ShaderMaterial   # the bottom miss-exit bar (danger_line.gdshader)
+var _center_banner: CenterBanner       # owns the intro/end overlay + its fades
 
 
 func to3d(p: Vector2) -> Vector3:
@@ -192,10 +180,13 @@ func _ready() -> void:
 	# Live-update glow/SSAO/shadows if the player changes Graphics settings while a level runs.
 	Settings.graphics_changed.connect(_apply_graphics_settings)
 
-	next_button.pressed.connect(GameState.start_next)
-	retry_button.pressed.connect(GameState.retry_level)
-	menu_button.pressed.connect(GameState.go_to_level_select)
 	door_button.pressed.connect(GameState.go_to_level_select)
+
+	# Intro/end overlay: hand the banner/lore/panel nodes to CenterBanner, which owns
+	# their fades and wires the choice buttons to GameState.
+	_center_banner = CenterBanner.new()
+	_center_banner.setup(banner_bg, lore_bg, banner_label, lore_label,
+		end_panel, next_button, retry_button, menu_button)
 
 	# Danger subsystem: hand the bottom-line bar material (built in _build_frame) and
 	# the red vignette material to a DangerView, which owns the heartbeat + shaders.
@@ -220,7 +211,7 @@ func _ready() -> void:
 	})
 
 	if _level != null:
-		_show_intro()
+		_center_banner.show_intro(_level.title, _level.lore_fragment)
 
 	if OS.has_environment("SOP_AUTOPLAY"):
 		var t := Timer.new()
@@ -664,114 +655,14 @@ func _end(msg: String, won: bool) -> void:
 	_update_heartbeat()   # game_over now true -> both pulses fade out (cleared or consumed)
 	_preview_mesh.clear_surfaces()
 	_update_preview_visibility()   # hide the ray at once, even if a finger is still down (Hold)
-	banner_label.text = msg
-	# The verdict reads against the board on its own soft black bar (no tagline now);
-	# the lose verdict turns red ("THE SPHERES CONSUME YOU"), the win stays pale.
-	banner_label.add_theme_color_override("font_color", BANNER_PALE if won else BANNER_RED)
-	_size_text_backdrop(banner_bg, banner_label, TITLE_BG_PAD_Y)
-	_fade_in(banner_bg, FADE_IN_TIME)
-	_fade_in(banner_label, FADE_IN_TIME)
-	_kill_fade(lore_label)
-	lore_label.visible = false
-	lore_label.modulate.a = 1.0
-	# The tagline (and its bar) belong to the intro only — make sure neither lingers
-	# if the game ended mid-intro.
-	_kill_fade(lore_bg)
-	lore_bg.visible = false
-	lore_bg.modulate.a = 1.0
 	if won and _level != null:
 		GameState.complete_current()
-	next_button.visible = won and _level != null and GameState.has_next()
-	retry_button.visible = not won and _level != null
-	# The verdict lands first; the choices surface a beat later.
-	_fade_in(end_panel, FADE_IN_TIME, 0.35)
-	# Hand keyboard focus to the most relevant choice so arrows + Enter work.
-	if next_button.visible:
-		next_button.grab_focus()
-	elif retry_button.visible:
-		retry_button.grab_focus()
-	else:
-		menu_button.grab_focus()
-
-
-## Level intro: title + lore fade in over the board, hold for a few seconds,
-## then dissolve (unless the game somehow ended first — the end banner wins).
-func _show_intro() -> void:
-	banner_label.text = _level.title
-	banner_label.add_theme_color_override("font_color", BANNER_PALE)
-	lore_label.text = _level.lore_fragment
-	# A separate soft bar hugs each line (title and tagline), centred on its own text;
-	# the title gets a taller plate to match its bigger font.
-	_size_text_backdrop(banner_bg, banner_label, TITLE_BG_PAD_Y)
-	_size_text_backdrop(lore_bg, lore_label, TEXT_BG_PAD_Y)
-	_fade_in(banner_bg, FADE_IN_TIME)
-	_fade_in(banner_label, FADE_IN_TIME)
-	_fade_in(lore_bg, FADE_IN_TIME, 0.25)
-	_fade_in(lore_label, FADE_IN_TIME, 0.25)
-	await get_tree().create_timer(3.0).timeout
-	if not is_inside_tree() or game_over:
-		return
-	_fade_out(banner_bg, FADE_OUT_TIME)
-	_fade_out(banner_label, FADE_OUT_TIME)
-	_fade_out(lore_bg, FADE_OUT_TIME)
-	_fade_out(lore_label, FADE_OUT_TIME)
-
-
-# --- ui fades -------------------------------------------------------------
-
-## Show `ctrl` by fading its modulate alpha up from zero (after `delay`).
-## Any fade already running on it is killed first, so rapid transitions
-## (intro fade-out interrupted by the end banner) can't stack.
-func _fade_in(ctrl: CanvasItem, dur: float, delay := 0.0) -> void:
-	_kill_fade(ctrl)
-	ctrl.modulate.a = 0.0
-	ctrl.visible = true
-	var tw := ctrl.create_tween()
-	if delay > 0.0:
-		tw.tween_interval(delay)
-	tw.tween_property(ctrl, "modulate:a", 1.0, dur)
-	ctrl.set_meta("fade_tween", tw)
-
-
-## Fade `ctrl` out, then hide it and restore full alpha for the next show.
-func _fade_out(ctrl: CanvasItem, dur: float) -> void:
-	_kill_fade(ctrl)
-	var tw := ctrl.create_tween()
-	tw.tween_property(ctrl, "modulate:a", 0.0, dur)
-	tw.tween_callback(func () -> void:
-		ctrl.visible = false
-		ctrl.modulate.a = 1.0)
-	ctrl.set_meta("fade_tween", tw)
-
-
-func _kill_fade(ctrl: CanvasItem) -> void:
-	if ctrl.has_meta("fade_tween"):
-		var tw: Tween = ctrl.get_meta("fade_tween")
-		if tw != null and tw.is_valid():
-			tw.kill()
-
-
-## Fit a full-width soft backdrop to one centre-text label: centre it on the label's
-## (centred) text and size it to the measured text height plus `pad_y` above and below,
-## then fade the bar out over exactly that pad so the text rests on solid black with an
-## equal margin top and bottom. Call after setting the label's text.
-func _size_text_backdrop(bg: ColorRect, label: Label, pad_y: float) -> void:
-	var font := label.get_theme_font("font")
-	if font == null:
-		return
-	var fsize := label.get_theme_font_size("font")
-	var ts := font.get_multiline_string_size(label.text, HORIZONTAL_ALIGNMENT_CENTER, -1.0, fsize)
-	# get_multiline_string_size ignores the Label's extra inter-line spacing; add it.
-	var lines := label.text.count("\n") + 1
-	if lines > 1:
-		ts.y += float(lines - 1) * float(label.get_theme_constant("line_spacing"))
-	var center_y := label.offset_top + (label.offset_bottom - label.offset_top) * 0.5
-	var h := ts.y + pad_y * 2.0
-	bg.offset_top = center_y - h * 0.5
-	bg.offset_bottom = center_y + h * 0.5
-	var mat := bg.material as ShaderMaterial
-	if mat != null:
-		mat.set_shader_parameter("soft_y", pad_y / h)   # fade out over the pad only
+	# The visual verdict + choice panel are the CenterBanner's job; we just decide
+	# which choices apply (next only on an authored win with a level after it; retry
+	# only on an authored loss — free play has neither).
+	var show_next := won and _level != null and GameState.has_next()
+	var show_retry := not won and _level != null
+	_center_banner.show_end(msg, won, show_next, show_retry)
 
 
 ## The top-left HUD counter: coloured spheres still on the field (the clear target)
