@@ -218,3 +218,37 @@ func test_rows_to_danger_empty_field_is_safe() -> void:
 	var m := _make_model()
 	m.cells = {}
 	assert_eq(m.rows_to_danger(), 13, "empty field is far from the line (danger_row - (-1))")
+
+
+# --- procedural free-play fill ------------------------------------------------
+
+func test_fill_random_is_deterministic_for_a_seed() -> void:
+	var a := GridModel.new(); a.width = 8; a.num_colors = 4; a.rng.seed = 999
+	a.fill_random(6, 0.1)
+	var b := GridModel.new(); b.width = 8; b.num_colors = 4; b.rng.seed = 999
+	b.fill_random(6, 0.1)
+	assert_eq(a.cells.size(), b.cells.size(), "same cell count for the same seed")
+	var identical := true
+	for k in a.cells:
+		if b.cells.get(k, -999) != a.cells[k]:
+			identical = false
+			break
+	assert_true(identical, "same seed -> identical board")
+
+
+func test_fill_random_respects_num_colors() -> void:
+	var m := GridModel.new(); m.width = 10; m.num_colors = 3; m.rng.seed = 1
+	m.fill_random(5, 0.0)   # no black: a full rows*width breakable fill
+	assert_eq(m.cells.size(), 50, "fraction 0 fills every cell")
+	for c in m.cells.values():
+		assert_true(c >= 0 and c < 3, "every breakable colour is in [0, num_colors)")
+
+
+func test_fill_random_seeds_black_obstacles() -> void:
+	var m := GridModel.new(); m.width = 10; m.num_colors = 3; m.rng.seed = 7
+	m.fill_random(10, 0.1)   # ~10 black of 100 cells
+	var black := 0
+	for c in m.cells.values():
+		if c == GridModel.BLACK:
+			black += 1
+	assert_gt(black, 0, "a positive black_fraction seeds some obstacles")

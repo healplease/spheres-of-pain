@@ -151,6 +151,18 @@ func randomize_colors() -> void:
 		if cells[cell] >= 0:
 			cells[cell] = rng.randi_range(0, num_colors - 1)
 
+## Procedurally fill a fresh free-play board: every cell in the first `rows` rows
+## takes a random breakable colour in [0, num_colors), then a fraction of cells are
+## overwritten with black obstacles. Uses this model's `rng`, so seeding `rng`
+## reproduces the board (free play randomizes it; tests can pin a seed).
+func fill_random(rows: int, black_fraction: float) -> void:
+	for r in range(rows):
+		for c in range(width):
+			cells[Vector2i(c, r)] = rng.randi() % num_colors
+	var black_count := int(round(rows * width * black_fraction))
+	for _i in range(black_count):
+		cells[Vector2i(rng.randi() % width, rng.randi() % rows)] = BLACK
+
 
 # --- win / lose ---------------------------------------------------------------
 

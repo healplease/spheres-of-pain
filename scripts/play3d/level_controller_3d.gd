@@ -565,13 +565,9 @@ func _layout_field() -> void:
 ## breakable colour, then a fraction are overwritten with unbreakable black
 ## obstacles.
 func _build_board() -> void:
-	for r in range(rows):
-		for c in range(columns):
-			model.cells[Vector2i(c, r)] = randi() % num_colors
-	var black_count := int(round(rows * columns * black_fraction))
-	for _i in range(black_count):
-		var cell := Vector2i(randi() % columns, randi() % rows)
-		model.cells[cell] = GridModel.BLACK
+	# The rule lives in the model (pure, seedable, unit-tested); the view just asks
+	# for a board. model.rng was seeded in _ready, so this honours that seed.
+	model.fill_random(rows, black_fraction)
 
 
 ## The gun's next colour, drawn only from those still present on the board so it
