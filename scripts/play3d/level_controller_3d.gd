@@ -317,38 +317,12 @@ func _on_aim_active_changed(active: bool) -> void:
 # --- setup helpers ------------------------------------------------------------
 
 func _build_visual_assets() -> void:
-	_mesh = SphereMesh.new()
-	_mesh.radius = SPHERE_RADIUS
-	_mesh.height = SPHERE_RADIUS * 2.0
-	# Lacquered-glass look: clearcoat for a wet specular skin, a rim so spheres
-	# keep a readable silhouette against the dark abyss, and a whisper of
-	# self-emission (far below the bloom threshold) so they glow faintly in fog.
-	for col in BoardView3D.PALETTE:
-		var m := StandardMaterial3D.new()
-		m.albedo_color = col
-		m.metallic = 0.35
-		m.roughness = 0.3
-		m.clearcoat_enabled = true
-		m.clearcoat = 0.7
-		m.clearcoat_roughness = 0.15
-		m.rim_enabled = true
-		m.rim = 0.4
-		m.rim_tint = 0.35
-		m.emission_enabled = true
-		m.emission = col
-		m.emission_energy_multiplier = 0.06
-		_mats.append(m)
-	# Black spheres are polished obsidian. A StandardMaterial3D rim needs scene light
-	# to catch the edge, which the dark abyss doesn't provide — so these use a custom
-	# shader that drives a self-lit fresnel edge into EMISSION instead. The glowing
-	# silhouette reads against the near-black background (and blooms) while the face
-	# stays dark and unbreakable-looking.
-	_black_mat = ShaderMaterial.new()
-	_black_mat.shader = preload("res://shaders/obsidian_rim.gdshader")
-	_preview_mat = StandardMaterial3D.new()
-	_preview_mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
-	_preview_mat.albedo_color = Color(0.9, 0.85, 0.85, 0.55)
-	_preview_mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	# Mesh + materials are pure resources; SphereAssets owns their construction.
+	var assets := SphereAssets.new(SPHERE_RADIUS)
+	_mesh = assets.mesh
+	_mats = assets.mats
+	_black_mat = assets.black_mat
+	_preview_mat = assets.preview_mat
 
 
 func _setup_environment() -> void:
