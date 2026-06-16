@@ -11,13 +11,10 @@ var _s := 1.0 / 56.0           # metres per logical pixel = 1/diameter; set in _
 const SPHERE_RADIUS := 0.46
 const FRAME_THICK := 0.3       # frame bar cross-section (metres)
 const FRAME_DEPTH := 0.6       # frame bar depth toward the camera (metres)
-const MARGIN_TOP := 96.0       # reserved screen margin at the top (design px) — extra
-                               # headroom so the HUD level name clears the field's top border
-const MARGIN_BOTTOM := 50.0    # reserved screen margin at the bottom (design px)
 const FIELD_CENTER_X := 640.0  # logical x the field + muzzle are centred on
 const TOP_Y := 80.0            # logical y of the row-0 sphere centres
 const GROWTH_BUFFER := 9       # empty rows below the fill before the danger line
-const BACKDROP_OFFSET := 12.0  # metres the abyss backdrop sits behind the board plane
+# Camera framing margins + backdrop offset live in StageView, which owns the camera.
 # Vertical stack below the danger (lose) line, in row-steps: the gun sits this far
 # below the line, then the red miss-exit bar sits this far below the gun. A smaller
 # MUZZLE_GAP lifts the whole gun+bar unit toward the field, so they sit closer to
@@ -46,7 +43,6 @@ var danger_row := 12
 var origin2d := Vector2(346, 80)   # logical board origin (cell 0,0)
 var muzzle2d := Vector2(640, 690)  # logical muzzle
 var _play_bottom := 720.0          # logical miss-exit line (below the muzzle)
-var _view_center := Vector3.ZERO   # camera look target (field centre nudged down for the HUD)
 
 @onready var world_env: WorldEnvironment = $WorldEnvironment
 @onready var light: DirectionalLight3D = $DirectionalLight3D
@@ -97,6 +93,7 @@ var _shots_fired := 0          # HUD counter; bumped on every shot
 var _danger_view: DangerView
 var _danger_line_mat: ShaderMaterial   # the bottom miss-exit bar (danger_line.gdshader)
 var _center_banner: CenterBanner       # owns the intro/end overlay + its fades
+var _stage_view: StageView             # owns the camera, backdrop, embers, environment
 
 
 func to3d(p: Vector2) -> Vector3:
@@ -110,7 +107,11 @@ func _ready() -> void:
 	_s = 1.0 / diameter   # world scale follows the configured sphere size (one cell ≈ 1 m)
 	randomize()
 	_build_visual_assets()
-	_setup_environment()
+	# StageView owns the camera, backdrop, embers and environment; it builds the
+	# environment now and reframes/recolours on the calls below.
+	_stage_view = StageView.new()
+	add_child(_stage_view)
+	_stage_view.setup(world_env, light, camera, backdrop, embers)
 
 	# An authored level (selected in the level-select menu) defines the board;
 	# with no selection (running this scene directly) fall back to a random one.
@@ -132,7 +133,7 @@ func _ready() -> void:
 		model.rng.randomize()
 		_build_board()
 
-	_apply_theme()
+	_stage_view.apply_theme(_level if _level != null else LevelResource.new())
 
 	sim.model = model
 	sim.diameter = diameter
@@ -168,17 +169,14 @@ func _ready() -> void:
 	_update_preview_visibility()
 
 	_build_frame()
-	_place_camera()
-	_fit_embers()
+	_stage_view.frame(_frame_bounds(FRAME_THICK))   # outer edge of the frame
+	_stage_view.fit_embers(_frame_bounds(0.0))
 	# Seed an initial aim + trajectory now that the camera is framed, so the gun can
 	# fire and the ray can show before the first _process frame. Afterwards we only
 	# re-simulate when the aim or board changes (see _aim_dirty / _input / _on_landed).
 	_update_aim()
 	_last_sim = sim.simulate(muzzle2d, _aim2d)
 	_aim_dirty = false
-	get_viewport().size_changed.connect(_place_camera)
-	# Live-update glow/SSAO/shadows if the player changes Graphics settings while a level runs.
-	Settings.graphics_changed.connect(_apply_graphics_settings)
 
 	door_button.pressed.connect(GameState.go_to_level_select)
 
@@ -294,129 +292,6 @@ func _build_visual_assets() -> void:
 	_mats = assets.mats
 	_black_mat = assets.black_mat
 	_preview_mat = assets.preview_mat
-
-
-func _setup_environment() -> void:
-	var env := Environment.new()
-	env.background_mode = Environment.BG_COLOR
-	env.background_color = Color(0.02, 0.02, 0.03)
-	env.ambient_light_source = Environment.AMBIENT_SOURCE_COLOR
-	env.ambient_light_color = Color(0.4, 0.4, 0.5)
-	env.ambient_light_energy = 0.5
-	env.fog_enabled = true
-	env.fog_light_color = Color(0.025, 0.02, 0.045)
-	env.fog_density = 0.015
-	# Glow for the pulsing danger line and the embers (both peak above 1.0);
-	# the abyss backdrop outputs plain ALBEDO so it can never bloom.
-	env.glow_enabled = true
-	env.glow_intensity = 0.7
-	env.glow_bloom = 0.0
-	env.glow_hdr_threshold = 1.0
-	env.glow_blend_mode = Environment.GLOW_BLEND_MODE_ADDITIVE
-	env.ssao_enabled = false   # overridden by _apply_graphics_settings() per the player's setting
-	# Gentle grading toward the gothic-ink look: drained colour, a hair more bite.
-	env.adjustment_enabled = true
-	env.adjustment_saturation = 0.88
-	env.adjustment_contrast = 1.04
-	world_env.environment = env
-	light.rotation_degrees = Vector3(-50, -40, 0)
-	light.light_energy = 1.3
-	light.light_color = Color(0.92, 0.88, 0.98)
-	# Glow / SSAO / shadow quality are player-controlled (Graphics settings); apply them now.
-	_apply_graphics_settings()
-
-
-## Apply the player's Graphics settings (glow / SSAO / shadow quality) onto the
-## already-built environment + light. Called once during setup and again whenever
-## the Settings autoload reports a change, so the look updates live.
-func _apply_graphics_settings() -> void:
-	var env := world_env.environment
-	if env == null:
-		return
-	env.glow_enabled = Settings.glow_enabled()
-	env.ssao_enabled = Settings.ssao_enabled()
-	match Settings.shadows():
-		SettingsStore.Shadows.OFF:
-			light.shadow_enabled = false
-		SettingsStore.Shadows.LOW:
-			light.shadow_enabled = true
-			light.directional_shadow_max_distance = 50.0
-		SettingsStore.Shadows.HIGH:
-			light.shadow_enabled = true
-			light.directional_shadow_max_distance = 100.0
-
-
-func _place_camera() -> void:
-	# Frame the whole play field (its outer frame) head-on, reserving MARGIN_TOP /
-	# MARGIN_BOTTOM of screen. The top reserve is larger so the HUD (level name)
-	# clears the field's top border: the field is centred in the band between them,
-	# which sits below screen centre, so we aim the camera a touch higher to push
-	# the field down into it. The viewport is the 1280x720 design space (canvas_items
-	# stretch), so the margins are deterministic across resolutions.
-	var b := _frame_bounds(FRAME_THICK)   # outer edge of the frame
-	var center := Vector3((b.x + b.y) * 0.5, (b.z + b.w) * 0.5, 0.0)
-	var field_h := absf(b.z - b.w)
-	var field_w := absf(b.y - b.x)
-	var vp := get_viewport().get_visible_rect().size
-	if vp.y <= 0.0:
-		return
-	camera.fov = 52.0
-	var tan_half := tan(deg_to_rad(camera.fov) * 0.5)
-	var v_frac: float = maxf(0.2, (vp.y - (MARGIN_TOP + MARGIN_BOTTOM)) / vp.y)
-	var aspect: float = vp.x / vp.y
-	var d_fit_height := (field_h / v_frac) / (2.0 * tan_half)
-	var d_fit_width := field_w / (2.0 * tan_half * aspect)
-	var d: float = maxf(d_fit_height, d_fit_width)
-	# Raise the look target by the band's downward shift, converted to world units
-	# at the field plane (the full visible height there maps to vp.y pixels).
-	var world_per_px := (2.0 * d * tan_half) / vp.y
-	var look_shift := (MARGIN_TOP - MARGIN_BOTTOM) * 0.5 * world_per_px
-	_view_center = center + Vector3(0.0, look_shift, 0.0)
-	camera.position = _view_center + Vector3(0.0, 0.0, d)
-	camera.look_at(_view_center, Vector3.UP)
-	_fit_backdrop()
-
-
-## Size the abyss backdrop quad to cover the camera frustum at its depth (with
-## 15% margin), so no background_color slivers show at any field size. Centred on
-## the camera's view axis (_view_center), not the field, so the look-target nudge
-## can't reveal a sliver of background_color at the top.
-func _fit_backdrop() -> void:
-	backdrop.position = Vector3(_view_center.x, _view_center.y, -BACKDROP_OFFSET)
-	var dist := camera.position.z + BACKDROP_OFFSET
-	var vp := get_viewport().get_visible_rect().size
-	if vp.y <= 0.0:
-		return
-	var h := 2.0 * dist * tan(deg_to_rad(camera.fov) * 0.5) * 1.15
-	var w := h * (vp.x / vp.y) * 1.15
-	backdrop.scale = Vector3(w * 0.5, h * 0.5, 1.0)   # QuadMesh is 2x2
-
-
-## Tint the abyss, embers and fog to the level's palette. The shader/particle
-## materials are shared scene sub-resources that persist across scene reloads,
-## so free play must reset them explicitly (via a defaults instance) rather
-## than leaving whatever the last level set.
-func _apply_theme() -> void:
-	var theme := _level if _level != null else LevelResource.new()
-	var mat := backdrop.material_override as ShaderMaterial
-	mat.set_shader_parameter("violet", theme.abyss_color_a)
-	mat.set_shader_parameter("teal", theme.abyss_color_b)
-	world_env.environment.fog_light_color = theme.fog_color
-	var ember_mat := (embers.draw_pass_1 as QuadMesh).material as StandardMaterial3D
-	ember_mat.albedo_color = Color(theme.ember_color, 0.55)
-
-
-## Spread the ember particles across the whole play field (they float in a thin
-## slab in front of the board plane), with density scaled to the field area.
-func _fit_embers() -> void:
-	var b := _frame_bounds(0.0)
-	var span_x := b.y - b.x
-	var span_y := b.z - b.w
-	embers.position = Vector3((b.x + b.y) * 0.5, (b.z + b.w) * 0.5, 1.2)
-	var pm := embers.process_material as ParticleProcessMaterial
-	pm.emission_box_extents = Vector3(span_x * 0.5 + 1.0, span_y * 0.5 + 1.0, 1.5)
-	embers.amount = clampi(int(span_x * span_y * 0.35), 60, 400)
-	embers.restart()
 
 
 ## World-space bounce rectangle, padded outward by `pad`. Returns (left_x,
