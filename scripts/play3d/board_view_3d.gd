@@ -6,11 +6,14 @@ extends Node3D
 ## BoardView; only the presentation differs. Logical 2D cell positions are mapped
 ## to 3D via S (metres per logical pixel; one cell ≈ 1 m).
 
-const S := 1.0 / 56.0
+var _s := 1.0 / 56.0   # metres per logical pixel = 1/diameter; set in setup()
 
 ## Sphere colour palette (colour id -> hue). The controller builds one
 ## StandardMaterial3D per entry. Final spheres get engraved sigils (the
 ## colorblind cue) in M3.
+# Must hold at least as many entries as the model's max colour count
+# (LevelResource.validate allows num_colors up to 10), or higher ids would alias
+# onto lower ones via `% _mats.size()`. Hues are chosen to stay distinguishable.
 const PALETTE: Array[Color] = [
 	Color("c0392b"),  # red
 	Color("2ec24a"),  # green  — pulled toward pure green, brighter
@@ -19,6 +22,9 @@ const PALETTE: Array[Color] = [
 	Color("8e44ad"),  # purple
 	Color("1ec3e0"),  # cyan   — lighter and bluer, no longer reads as green
 	Color("d35400"),  # orange
+	Color("e84393"),  # magenta — hot pink, distinct from red and purple
+	Color("8d5a2b"),  # brown   — warm, low-chroma, distinct from orange
+	Color("cfd8dc"),  # bone    — pale grey-white, the colourless sphere
 ]
 
 # Animation tuning.
@@ -41,13 +47,14 @@ func setup(p_model: GridModel, p_mesh: Mesh, p_mats: Array, p_black: ShaderMater
 	_mats = p_mats
 	_black_mat = p_black
 	diameter = p_diameter
+	_s = 1.0 / p_diameter   # world scale follows the configured sphere size
 	_build_all()
 
 
 ## Board-local 3D position of a cell (the node sits at the board origin).
 func cell_local(cell: Vector2i) -> Vector3:
 	var l := Hex.cell_to_world(cell, Vector2.ZERO, diameter)
-	return Vector3(l.x * S, -l.y * S, 0.0)
+	return Vector3(l.x * _s, -l.y * _s, 0.0)
 
 
 ## Initial field: every sphere created instantly at full size (no intro animation).
@@ -96,8 +103,15 @@ func sync(instant_cells: Array = [], pop_origin = null) -> float:
 	return settle
 
 
+## Single source of truth for the colour -> material map, shared by the board, the
+## projectile, and the muzzle so they can never drift. BLACK gets the obsidian
+## shader; any other id wraps into the palette materials.
+static func mat_for(mats: Array, black: Material, color: int) -> Material:
+	return black if color == GridModel.BLACK else mats[color % mats.size()]
+
+
 func _mat_for(color: int) -> Material:
-	return _black_mat if color == GridModel.BLACK else _mats[color % _mats.size()]
+	return BoardView3D.mat_for(_mats, _black_mat, color)
 
 
 func _make_sphere(color: int) -> MeshInstance3D:
@@ -143,13 +157,16 @@ func _play_pop(mi: MeshInstance3D) -> void:
 		return
 	# Sound is driven once per cluster by the controller (Sound.play_cluster_pop),
 	# not per sphere — a big clear would otherwise machine-gun the pop sample.
-	# Materials are shared across same-colour spheres; duplicate so fading this
-	# one doesn't fade the others.
-	var m := mi.material_override.duplicate() as StandardMaterial3D
-	m.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
-	mi.material_override = m
 	var tw := mi.create_tween()
 	tw.set_parallel(true)
 	tw.tween_property(mi, "scale", Vector3.ONE * POP_SCALE, POP_TIME).set_ease(Tween.EASE_OUT)
-	tw.tween_property(m, "albedo_color:a", 0.0, POP_TIME).set_ease(Tween.EASE_OUT)
+	# Alpha fade needs a per-instance StandardMaterial3D (shared across same-colour
+	# spheres, so duplicate it). Black/obstacle spheres carry a ShaderMaterial, not a
+	# StandardMaterial3D — only breakables pop today, but guard the cast so a future
+	# rule that pops one can't null-deref; it just scales out without the fade.
+	var m := mi.material_override.duplicate() as StandardMaterial3D
+	if m != null:
+		m.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+		mi.material_override = m
+		tw.tween_property(m, "albedo_color:a", 0.0, POP_TIME).set_ease(Tween.EASE_OUT)
 	tw.finished.connect(mi.queue_free)

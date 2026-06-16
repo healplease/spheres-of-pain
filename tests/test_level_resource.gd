@@ -73,9 +73,21 @@ func test_validate_flags_color_out_of_range() -> void:
 
 
 func test_validate_flags_low_danger_row() -> void:
-	var lv := _make_level()
-	lv.danger_row = 2
+	var lv := _make_level()       # layout is 2 rows (indices 0,1)
+	lv.danger_row = 1             # a row that authored spheres occupy -> on/over the line
 	assert_false(lv.validate().is_empty(), "danger_row inside the layout flagged")
+
+
+func test_validate_allows_danger_row_just_below_layout() -> void:
+	var lv := _make_level()       # layout is 2 rows
+	lv.danger_row = lv.layout.size()   # the first empty row below the layout: valid
+	assert_true(lv.validate().is_empty(), "danger_row == rows is the tightest valid line")
+
+
+func test_palette_covers_every_allowed_colour() -> void:
+	# validate() allows num_colors up to 10; the renderer must have a distinct
+	# material per colour or higher ids would alias via `% _mats.size()`.
+	assert_true(BoardView3D.PALETTE.size() >= 10, "palette must cover all 10 allowed colours")
 
 
 func test_validate_flags_no_breakables() -> void:

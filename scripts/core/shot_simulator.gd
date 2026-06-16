@@ -60,6 +60,9 @@ func simulate(start: Vector2, dir: Vector2) -> Dictionary:
 	if collided == null:
 		return {"path": pts, "miss": true}
 	var cell: Vector2i = _snap_cell(p, collided)
+	if cell.x < 0:                # no legal attach cell -> treat as a miss rather
+		pts.append(p)             # than overwriting/floating a sphere (see _snap_cell)
+		return {"path": pts, "miss": true}
 	pts.append(Hex.cell_to_world(cell, origin, diameter))
 	return {"path": pts, "cell": cell, "miss": false}
 
@@ -68,9 +71,11 @@ func _nearest_occupied(p: Vector2):
 	var base := Hex.world_to_cell(p, origin, diameter)
 	var best = null
 	var bestd := diameter * HIT_DISTANCE_SCALE
-	var candidates: Array[Vector2i] = [base]
-	candidates.append_array(Hex.neighbors(base))
-	for c in candidates:
+	# Test base and its six neighbours without allocating an array each step (this
+	# runs up to 6000 times per simulate()). i == 0 is base; 1..6 are the deltas.
+	var dirs: Array = Hex.DIRS[base.y & 1]
+	for i in range(7):
+		var c: Vector2i = base if i == 0 else base + dirs[i - 1]
 		if model.cells.has(c):
 			var d := p.distance_to(Hex.cell_to_world(c, origin, diameter))
 			if d < bestd:
@@ -82,11 +87,12 @@ func _nearest_occupied(p: Vector2):
 func _snap_cell(p: Vector2, collided) -> Vector2i:
 	var base := Hex.world_to_cell(p, origin, diameter)
 	var cand := {base: true}
-	for nb in Hex.neighbors(base):
-		cand[nb] = true
+	for delta in Hex.DIRS[base.y & 1]:
+		cand[base + delta] = true
 	if collided != null:
-		for nb in Hex.neighbors(collided):
-			cand[nb] = true
+		var cc: Vector2i = collided
+		for delta in Hex.DIRS[cc.y & 1]:
+			cand[cc + delta] = true
 	var best = null
 	var bestd := INF
 	for c in cand.keys():
@@ -101,5 +107,10 @@ func _snap_cell(p: Vector2, collided) -> Vector2i:
 			bestd = d
 			best = c
 	if best == null:
-		return Vector2i(int(clampf(base.x, 0, columns - 1)), maxi(base.y, 0))
+		# Every candidate was occupied, out of bounds, or disconnected from the
+		# cluster. There is no legal cell to attach to, so report failure with an
+		# invalid sentinel (x < 0); simulate() turns this into a miss. Returning a
+		# clamped base cell here would let attach() overwrite a settled sphere or
+		# strand a neighbourless one (find_orphans only runs on a pop).
+		return Vector2i(-1, -1)
 	return best
