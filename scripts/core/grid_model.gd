@@ -48,8 +48,10 @@ func count_colored() -> int:
 	return n
 
 func has_neighbor(cell: Vector2i) -> bool:
-	for nb in Hex.neighbors(cell):
-		if cells.has(nb):
+	# Iterate the direction deltas directly (Hex.neighbors would allocate an array
+	# per call; this is on the orphan-sweep hot path).
+	for delta in Hex.DIRS[cell.y & 1]:
+		if cells.has(cell + delta):
 			return true
 	return false
 
@@ -81,7 +83,8 @@ func match_group(start: Vector2i) -> Array[Vector2i]:
 	var stack: Array[Vector2i] = [start]
 	while not stack.is_empty():
 		var cell: Vector2i = stack.pop_back()
-		for nb in Hex.neighbors(cell):
+		for delta in Hex.DIRS[cell.y & 1]:
+			var nb: Vector2i = cell + delta
 			if seen.has(nb):
 				continue
 			if cells.get(nb, -999) == target:
@@ -133,12 +136,14 @@ func grow() -> void:
 	for cell in snapshot:
 		if snapshot[cell] < 0:
 			continue  # only breakable spheres seed growth
-		for nb in Hex.neighbors(cell):
+		for delta in Hex.DIRS[cell.y & 1]:
+			var nb: Vector2i = cell + delta
 			if not snapshot.has(nb) and nb.x >= 0 and nb.x < width and nb.y >= 0:
 				candidates[nb] = true
 	for cell in candidates:
 		var colors: Array[int] = []
-		for nb in Hex.neighbors(cell):
+		for delta in Hex.DIRS[cell.y & 1]:
+			var nb: Vector2i = cell + delta
 			if snapshot.has(nb) and snapshot[nb] >= 0:
 				colors.append(snapshot[nb])
 		if colors.size() >= 1 and colors.size() <= 4:
