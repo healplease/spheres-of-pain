@@ -1,0 +1,55 @@
+[gd_scene load_steps=3 format=3]
+
+[ext_resource type="Script" path="res://scripts/ui/level_row.gd" id="1_row"]
+
+[sub_resource type="StyleBoxFlat" id="SB_row"]
+bg_color = Color(0.05, 0.04, 0.07, 0.55)
+border_width_left = 1
+border_width_top = 1
+border_width_right = 1
+border_width_bottom = 1
+border_color = Color(0.4, 0.36, 0.45, 0.35)
+corner_radius_top_left = 4
+corner_radius_top_right = 4
+corner_radius_bottom_right = 4
+corner_radius_bottom_left = 4
+content_margin_left = 14.0
+content_margin_top = 8.0
+content_margin_right = 14.0
+content_margin_bottom = 8.0
+
+[node name="LevelRow" type="PanelContainer"]
+custom_minimum_size = Vector2(760, 0)
+theme_override_styles/panel = SubResource("SB_row")
+script = ExtResource("1_row")
+
+[node name="HBox" type="HBoxContainer" parent="."]
+layout_mode = 2
+theme_override_constants/separation = 12
+
+[node name="TitleLabel" type="Label" parent="HBox"]
+layout_mode = 2
+size_flags_horizontal = 3
+size_flags_vertical = 1
+theme_override_colors/font_color = Color(0.82, 0.76, 0.7, 1)
+theme_override_font_sizes/font_size = 24
+text = "Level"
+vertical_alignment = 1
+
+[node name="PlayButton" type="Button" parent="HBox"]
+custom_minimum_size = Vector2(110, 44)
+layout_mode = 2
+theme_override_font_sizes/font_size = 18
+text = "PLAY"
+
+[node name="EditButton" type="Button" parent="HBox"]
+custom_minimum_size = Vector2(110, 44)
+layout_mode = 2
+theme_override_font_sizes/font_size = 18
+text = "EDIT"
+
+[node name="DeleteButton" type="Button" parent="HBox"]
+custom_minimum_size = Vector2(110, 44)
+layout_mode = 2
+theme_override_font_sizes/font_size = 18
+text = "DELETE"

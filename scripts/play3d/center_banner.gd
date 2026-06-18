@@ -50,7 +50,7 @@ func setup(
 	# owns their wiring too.
 	_next_button.pressed.connect(GameState.start_next)
 	_retry_button.pressed.connect(GameState.retry_level)
-	_menu_button.pressed.connect(GameState.go_to_level_select)
+	_menu_button.pressed.connect(GameState.go_back_from_play)
 
 
 ## Title + lore fade in over the board, hold for a few seconds, then dissolve —

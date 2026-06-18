@@ -1,6 +1,6 @@
-[gd_scene load_steps=11 format=3]
+[gd_scene load_steps=9 format=3]
 
-[ext_resource type="Script" path="res://scripts/ui/level_select.gd" id="1_sel"]
+[ext_resource type="Script" path="res://scripts/ui/my_levels.gd" id="1_my"]
 [ext_resource type="Shader" path="res://shaders/abyss_menu.gdshader" id="2_abyss"]
 [ext_resource type="Shader" path="res://shaders/dread_overlay.gdshader" id="3_dread"]
 [ext_resource type="Shader" path="res://shaders/button_smoke.gdshader" id="4_smoke"]
@@ -9,8 +9,8 @@
 
 [sub_resource type="ShaderMaterial" id="SM_bg"]
 shader = ExtResource("2_abyss")
-shader_parameter/accent_a = Color(0.13, 0.04, 0.08, 1)
-shader_parameter/accent_b = Color(0.05, 0.05, 0.12, 1)
+shader_parameter/accent_a = Color(0.11, 0.05, 0.1, 1)
+shader_parameter/accent_b = Color(0.05, 0.06, 0.13, 1)
 
 [sub_resource type="ShaderMaterial" id="SM_overlay"]
 shader = ExtResource("3_dread")
@@ -21,16 +21,16 @@ shader = ExtResource("4_smoke")
 
 [sub_resource type="ShaderMaterial" id="SM_title"]
 shader = ExtResource("6_title")
-shader_parameter/seed = 1.3
+shader_parameter/seed = 2.1
 
-[node name="LevelSelect" type="Control"]
+[node name="MyLevels" type="Control"]
 layout_mode = 3
 anchors_preset = 15
 anchor_right = 1.0
 anchor_bottom = 1.0
 grow_horizontal = 2
 grow_vertical = 2
-script = ExtResource("1_sel")
+script = ExtResource("1_my")
 
 [node name="Background" type="ColorRect" parent="."]
 material = SubResource("SM_bg")
@@ -60,7 +60,7 @@ grow_vertical = 2
 
 [node name="VBox" type="VBoxContainer" parent="Center"]
 layout_mode = 2
-theme_override_constants/separation = 24
+theme_override_constants/separation = 20
 alignment = 1
 
 [node name="Title" type="Label" parent="Center/VBox"]
@@ -72,64 +72,21 @@ theme_override_colors/font_shadow_color = Color(0.35, 0.05, 0.06, 0.6)
 theme_override_constants/shadow_offset_x = 0
 theme_override_constants/shadow_offset_y = 3
 theme_override_font_sizes/font_size = 42
-text = "CHOOSE YOUR DESCENT"
+text = "YOUR DESCENTS"
 horizontal_alignment = 1
 
-[node name="Grid" type="GridContainer" parent="Center/VBox"]
+[node name="List" type="VBoxContainer" parent="Center/VBox"]
+custom_minimum_size = Vector2(760, 380)
 layout_mode = 2
-theme_override_constants/h_separation = 14
-theme_override_constants/v_separation = 14
-columns = 5
+theme_override_constants/separation = 10
 
-[node name="Level1" type="Button" parent="Center/VBox/Grid"]
-custom_minimum_size = Vector2(200, 92)
+[node name="Empty" type="Label" parent="Center/VBox"]
+visible = false
 layout_mode = 2
-text = "1"
-
-[node name="Level2" type="Button" parent="Center/VBox/Grid"]
-custom_minimum_size = Vector2(200, 92)
-layout_mode = 2
-text = "2"
-
-[node name="Level3" type="Button" parent="Center/VBox/Grid"]
-custom_minimum_size = Vector2(200, 92)
-layout_mode = 2
-text = "3"
-
-[node name="Level4" type="Button" parent="Center/VBox/Grid"]
-custom_minimum_size = Vector2(200, 92)
-layout_mode = 2
-text = "4"
-
-[node name="Level5" type="Button" parent="Center/VBox/Grid"]
-custom_minimum_size = Vector2(200, 92)
-layout_mode = 2
-text = "5"
-
-[node name="Level6" type="Button" parent="Center/VBox/Grid"]
-custom_minimum_size = Vector2(200, 92)
-layout_mode = 2
-text = "6"
-
-[node name="Level7" type="Button" parent="Center/VBox/Grid"]
-custom_minimum_size = Vector2(200, 92)
-layout_mode = 2
-text = "7"
-
-[node name="Level8" type="Button" parent="Center/VBox/Grid"]
-custom_minimum_size = Vector2(200, 92)
-layout_mode = 2
-text = "8"
-
-[node name="Level9" type="Button" parent="Center/VBox/Grid"]
-custom_minimum_size = Vector2(200, 92)
-layout_mode = 2
-text = "9"
-
-[node name="Level10" type="Button" parent="Center/VBox/Grid"]
-custom_minimum_size = Vector2(200, 92)
-layout_mode = 2
-text = "10"
+theme_override_colors/font_color = Color(0.55, 0.5, 0.58, 1)
+theme_override_font_sizes/font_size = 22
+text = "No levels yet — forge one in the editor."
+horizontal_alignment = 1
 
 [node name="PageNav" type="HBoxContainer" parent="Center/VBox"]
 layout_mode = 2
@@ -158,28 +115,21 @@ layout_mode = 2
 theme_override_font_sizes/font_size = 20
 text = "NEXT ›"
 
-[node name="EditorNav" type="HBoxContainer" parent="Center/VBox"]
+[node name="Footer" type="HBoxContainer" parent="Center/VBox"]
 layout_mode = 2
 size_flags_horizontal = 4
 theme_override_constants/separation = 20
 alignment = 1
 
-[node name="MyLevelsButton" type="Button" parent="Center/VBox/EditorNav"]
-custom_minimum_size = Vector2(240, 48)
-layout_mode = 2
-theme_override_font_sizes/font_size = 20
-text = "MY LEVELS"
-
-[node name="CreateButton" type="Button" parent="Center/VBox/EditorNav"]
+[node name="CreateButton" type="Button" parent="Center/VBox/Footer"]
 custom_minimum_size = Vector2(240, 48)
 layout_mode = 2
 theme_override_font_sizes/font_size = 20
 text = "CREATE LEVEL"
 
-[node name="BackButton" type="Button" parent="Center/VBox"]
+[node name="BackButton" type="Button" parent="Center/VBox/Footer"]
 custom_minimum_size = Vector2(200, 48)
 layout_mode = 2
-size_flags_horizontal = 4
 theme_override_font_sizes/font_size = 20
 text = "BACK"
 
@@ -192,5 +142,3 @@ anchor_bottom = 1.0
 grow_horizontal = 2
 grow_vertical = 2
 mouse_filter = 2
-
-[connection signal="pressed" from="Center/VBox/BackButton" to="." method="_on_back_pressed"]

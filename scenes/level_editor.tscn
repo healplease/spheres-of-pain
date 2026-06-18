@@ -1,0 +1,283 @@
+[gd_scene load_steps=18 format=3]
+
+[ext_resource type="Script" path="res://scripts/play3d/level_editor_3d.gd" id="1_ed"]
+[ext_resource type="Script" path="res://scripts/play3d/board_view_3d.gd" id="2_board"]
+[ext_resource type="Shader" path="res://shaders/abyss_backdrop.gdshader" id="3_abyss"]
+[ext_resource type="Script" path="res://scripts/ui/editor_drop_zone.gd" id="4_drop"]
+[ext_resource type="Theme" path="res://themes/game_theme.tres" id="5_theme"]
+
+[sub_resource type="ShaderMaterial" id="SM_abyss"]
+shader = ExtResource("3_abyss")
+shader_parameter/noise_scale = 0.12
+shader_parameter/drift_speed = 0.015
+shader_parameter/pan_speed = 0.004
+shader_parameter/warp_strength = 1.6
+shader_parameter/brightness = 1.0
+shader_parameter/base_color = Color(0.012, 0.012, 0.02, 1)
+shader_parameter/violet = Color(0.1, 0.05, 0.17, 1)
+shader_parameter/teal = Color(0.03, 0.1, 0.11, 1)
+
+[sub_resource type="QuadMesh" id="QM_backdrop"]
+size = Vector2(2, 2)
+
+[sub_resource type="Gradient" id="G_life"]
+offsets = PackedFloat32Array(0, 0.15, 0.85, 1)
+colors = PackedColorArray(1, 1, 1, 0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0)
+
+[sub_resource type="GradientTexture1D" id="GT_life"]
+gradient = SubResource("G_life")
+
+[sub_resource type="ParticleProcessMaterial" id="PPM_embers"]
+lifetime_randomness = 0.4
+emission_shape = 3
+emission_box_extents = Vector3(10, 8, 1.5)
+direction = Vector3(0, 1, 0)
+spread = 180.0
+initial_velocity_min = 0.02
+initial_velocity_max = 0.1
+gravity = Vector3(0, 0.04, 0)
+scale_min = 0.4
+color_ramp = SubResource("GT_life")
+turbulence_enabled = true
+turbulence_noise_strength = 0.2
+turbulence_noise_scale = 1.5
+
+[sub_resource type="Gradient" id="G_dot"]
+offsets = PackedFloat32Array(0, 0.35, 1)
+colors = PackedColorArray(1, 1, 1, 1, 1, 0.85, 0.6, 0.55, 1, 0.7, 0.4, 0)
+
+[sub_resource type="GradientTexture2D" id="GT_dot"]
+gradient = SubResource("G_dot")
+width = 32
+height = 32
+fill = 1
+fill_from = Vector2(0.5, 0.5)
+fill_to = Vector2(0.5, 0)
+
+[sub_resource type="StandardMaterial3D" id="Mat_ember"]
+transparency = 1
+blend_mode = 1
+shading_mode = 0
+albedo_color = Color(1, 0.62, 0.3, 0.55)
+albedo_texture = SubResource("GT_dot")
+disable_receive_shadows = true
+billboard_mode = 3
+billboard_keep_scale = true
+
+[sub_resource type="QuadMesh" id="QM_ember"]
+material = SubResource("Mat_ember")
+size = Vector2(0.07, 0.07)
+
+[sub_resource type="StyleBoxFlat" id="SB_panel"]
+bg_color = Color(0.04, 0.035, 0.055, 0.82)
+border_width_left = 1
+border_width_top = 1
+border_width_right = 1
+border_width_bottom = 1
+border_color = Color(0.4, 0.36, 0.45, 0.4)
+corner_radius_top_left = 5
+corner_radius_top_right = 5
+corner_radius_bottom_right = 5
+corner_radius_bottom_left = 5
+content_margin_left = 14.0
+content_margin_top = 14.0
+content_margin_right = 14.0
+content_margin_bottom = 14.0
+
+[node name="LevelEditor" type="Node3D"]
+script = ExtResource("1_ed")
+
+[node name="WorldEnvironment" type="WorldEnvironment" parent="."]
+
+[node name="DirectionalLight3D" type="DirectionalLight3D" parent="."]
+
+[node name="Camera3D" type="Camera3D" parent="."]
+current = true
+
+[node name="Backdrop" type="MeshInstance3D" parent="."]
+material_override = SubResource("SM_abyss")
+cast_shadow = 0
+mesh = SubResource("QM_backdrop")
+
+[node name="Embers" type="GPUParticles3D" parent="."]
+amount = 200
+lifetime = 12.0
+preprocess = 12.0
+process_material = SubResource("PPM_embers")
+draw_pass_1 = SubResource("QM_ember")
+
+[node name="Board" type="Node3D" parent="."]
+script = ExtResource("2_board")
+
+[node name="Preview" type="MeshInstance3D" parent="."]
+
+[node name="Ui" type="CanvasLayer" parent="."]
+
+[node name="Root" type="Control" parent="Ui"]
+layout_mode = 3
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 2
+theme = ExtResource("5_theme")
+
+[node name="DropZone" type="Control" parent="Ui/Root"]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+script = ExtResource("4_drop")
+
+[node name="Title" type="Label" parent="Ui/Root"]
+layout_mode = 1
+anchors_preset = 5
+anchor_left = 0.5
+anchor_right = 0.5
+offset_left = -300.0
+offset_top = 18.0
+offset_right = 300.0
+offset_bottom = 62.0
+grow_horizontal = 2
+mouse_filter = 2
+theme_type_variation = &"TitleText"
+theme_override_colors/font_color = Color(0.78, 0.72, 0.65, 1)
+theme_override_font_sizes/font_size = 34
+text = "FORGE YOUR DESCENT"
+horizontal_alignment = 1
+vertical_alignment = 1
+
+[node name="Palette" type="VBoxContainer" parent="Ui/Root"]
+layout_mode = 1
+offset_left = 24.0
+offset_top = 80.0
+offset_right = 150.0
+offset_bottom = 660.0
+theme_override_constants/separation = 8
+
+[node name="PaletteLabel" type="Label" parent="Ui/Root/Palette"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.6, 0.56, 0.64, 1)
+theme_override_font_sizes/font_size = 16
+text = "BUBBLES"
+horizontal_alignment = 1
+
+[node name="Columns" type="HBoxContainer" parent="Ui/Root/Palette"]
+layout_mode = 2
+theme_override_constants/separation = 10
+
+[node name="ColorColumn" type="VBoxContainer" parent="Ui/Root/Palette/Columns"]
+layout_mode = 2
+theme_override_constants/separation = 6
+
+[node name="BlackColumn" type="VBoxContainer" parent="Ui/Root/Palette/Columns"]
+layout_mode = 2
+theme_override_constants/separation = 6
+
+[node name="Inspector" type="PanelContainer" parent="Ui/Root"]
+layout_mode = 1
+anchors_preset = 1
+anchor_left = 1.0
+anchor_right = 1.0
+offset_left = -316.0
+offset_top = 80.0
+offset_right = -24.0
+offset_bottom = 600.0
+grow_horizontal = 0
+theme_override_styles/panel = SubResource("SB_panel")
+
+[node name="VBox" type="VBoxContainer" parent="Ui/Root/Inspector"]
+layout_mode = 2
+theme_override_constants/separation = 12
+
+[node name="InspectorLabel" type="Label" parent="Ui/Root/Inspector/VBox"]
+layout_mode = 2
+theme_type_variation = &"TitleText"
+theme_override_colors/font_color = Color(0.78, 0.72, 0.65, 1)
+theme_override_font_sizes/font_size = 26
+text = "LEVEL"
+
+[node name="WidthRow" type="HBoxContainer" parent="Ui/Root/Inspector/VBox"]
+layout_mode = 2
+theme_override_constants/separation = 12
+
+[node name="Label" type="Label" parent="Ui/Root/Inspector/VBox/WidthRow"]
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_font_sizes/font_size = 20
+text = "Width"
+vertical_alignment = 1
+
+[node name="WidthSpin" type="SpinBox" parent="Ui/Root/Inspector/VBox/WidthRow"]
+custom_minimum_size = Vector2(96, 0)
+layout_mode = 2
+min_value = 3.0
+max_value = 16.0
+value = 8.0
+
+[node name="HeightRow" type="HBoxContainer" parent="Ui/Root/Inspector/VBox"]
+layout_mode = 2
+theme_override_constants/separation = 12
+
+[node name="Label" type="Label" parent="Ui/Root/Inspector/VBox/HeightRow"]
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_font_sizes/font_size = 20
+text = "Height"
+vertical_alignment = 1
+
+[node name="HeightSpin" type="SpinBox" parent="Ui/Root/Inspector/VBox/HeightRow"]
+custom_minimum_size = Vector2(96, 0)
+layout_mode = 2
+min_value = 2.0
+max_value = 14.0
+value = 5.0
+
+[node name="NameLabel" type="Label" parent="Ui/Root/Inspector/VBox"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.6, 0.56, 0.64, 1)
+theme_override_font_sizes/font_size = 18
+text = "Name"
+
+[node name="NameEdit" type="LineEdit" parent="Ui/Root/Inspector/VBox"]
+layout_mode = 2
+placeholder_text = "Unnamed Pit"
+
+[node name="TaglineLabel" type="Label" parent="Ui/Root/Inspector/VBox"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.6, 0.56, 0.64, 1)
+theme_override_font_sizes/font_size = 18
+text = "Tagline"
+
+[node name="TaglineEdit" type="LineEdit" parent="Ui/Root/Inspector/VBox"]
+layout_mode = 2
+placeholder_text = "A line of lore..."
+
+[node name="Status" type="Label" parent="Ui/Root/Inspector/VBox"]
+custom_minimum_size = Vector2(0, 48)
+layout_mode = 2
+theme_override_colors/font_color = Color(0.72, 0.68, 0.74, 1)
+theme_override_font_sizes/font_size = 16
+autowrap_mode = 2
+vertical_alignment = 1
+
+[node name="PlayButton" type="Button" parent="Ui/Root/Inspector/VBox"]
+custom_minimum_size = Vector2(0, 48)
+layout_mode = 2
+theme_override_font_sizes/font_size = 22
+text = "PLAY"
+
+[node name="SaveButton" type="Button" parent="Ui/Root/Inspector/VBox"]
+custom_minimum_size = Vector2(0, 48)
+layout_mode = 2
+theme_override_font_sizes/font_size = 22
+text = "SAVE"
+
+[node name="BackButton" type="Button" parent="Ui/Root/Inspector/VBox"]
+custom_minimum_size = Vector2(0, 44)
+layout_mode = 2
+theme_override_font_sizes/font_size = 18
+text = "BACK"

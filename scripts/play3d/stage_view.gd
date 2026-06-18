@@ -13,6 +13,12 @@ const MARGIN_TOP := 96.0  # reserved screen margin at the top (design px) — ex
 const MARGIN_BOTTOM := 50.0  # reserved screen margin at the bottom (design px)
 const BACKDROP_OFFSET := 12.0  # metres the abyss backdrop sits behind the board plane
 
+## Horizontal screen margins (design px) reserved on each side, so the framed field
+## clears side panels that overlay it. Zero for play (full-width framing); the level
+## editor sets these to keep the board out from under its palette/inspector columns.
+var reserve_left := 0.0
+var reserve_right := 0.0
+
 var _world_env: WorldEnvironment
 var _light: DirectionalLight3D
 var _camera: Camera3D
@@ -117,15 +123,19 @@ func _place_camera() -> void:
 	_camera.fov = 52.0
 	var tan_half := tan(deg_to_rad(_camera.fov) * 0.5)
 	var v_frac: float = maxf(0.2, (vp.y - (MARGIN_TOP + MARGIN_BOTTOM)) / vp.y)
+	var h_frac: float = maxf(0.2, (vp.x - (reserve_left + reserve_right)) / vp.x)
 	var aspect: float = vp.x / vp.y
 	var d_fit_height := (field_h / v_frac) / (2.0 * tan_half)
-	var d_fit_width := field_w / (2.0 * tan_half * aspect)
+	var d_fit_width := (field_w / h_frac) / (2.0 * tan_half * aspect)
 	var d: float = maxf(d_fit_height, d_fit_width)
-	# Raise the look target by the band's downward shift, converted to world units
-	# at the field plane (the full visible height there maps to vp.y pixels).
+	# Shift the look target toward each reserved side (in world units at the field
+	# plane, where the full visible height maps to vp.y pixels — metres-per-pixel is
+	# equal in x and y). The vertical shift pushes the field into the band between the
+	# HUD margins; the horizontal shift keeps it clear of any side panels.
 	var world_per_px := (2.0 * d * tan_half) / vp.y
-	var look_shift := (MARGIN_TOP - MARGIN_BOTTOM) * 0.5 * world_per_px
-	_view_center = center + Vector3(0.0, look_shift, 0.0)
+	var look_shift_y := (MARGIN_TOP - MARGIN_BOTTOM) * 0.5 * world_per_px
+	var look_shift_x := (reserve_right - reserve_left) * 0.5 * world_per_px
+	_view_center = center + Vector3(look_shift_x, look_shift_y, 0.0)
 	_camera.position = _view_center + Vector3(0.0, 0.0, d)
 	_camera.look_at(_view_center, Vector3.UP)
 	_fit_backdrop()

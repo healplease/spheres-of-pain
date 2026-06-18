@@ -192,7 +192,7 @@ func _ready() -> void:
 	_last_sim = sim.simulate(muzzle2d, _aim2d)
 	_aim_dirty = false
 
-	door_button.pressed.connect(GameState.go_to_level_select)
+	door_button.pressed.connect(GameState.go_back_from_play)
 
 	# Intro/end overlay: hand the banner/lore/panel nodes to CenterBanner, which owns
 	# their fades and wires the choice buttons to GameState.
@@ -430,10 +430,10 @@ func _input(event: InputEvent) -> void:
 		_update_aim()
 		_aim_dirty = true
 		return
-	# Fullscreen has no window chrome — Esc leaves to level select (same as the
-	# HUD door button), so the two exits behave identically.
+	# Fullscreen has no window chrome — Esc leaves the level (same as the HUD door
+	# button), returning to whatever launched it (level select, editor, My Levels).
 	if event.is_action_pressed("ui_cancel"):
-		GameState.go_to_level_select()
+		GameState.go_back_from_play()
 	elif event.is_action_pressed("toggle_aim"):
 		aim_ray_enabled = not aim_ray_enabled
 		_update_preview_visibility()  # in Hold mode, still only shows while the button is held
