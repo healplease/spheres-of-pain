@@ -24,7 +24,8 @@ var _intro_running := false
 var _intro_tween: Tween
 var _intro_faded: Array[CanvasItem] = []
 
-@onready var select_level_button: Button = $Center/VBox/SelectLevelButton
+@onready var campaign_button: Button = $Center/VBox/CampaignButton
+@onready var workshop_button: Button = $Center/VBox/WorkshopButton
 @onready var settings_button: Button = $Center/VBox/SettingsButton
 @onready var quit_button: Button = $Center/VBox/QuitButton
 @onready var title: Label = $Center/VBox/Title
@@ -43,10 +44,17 @@ func _ready() -> void:
 	if GameState.intro_played:
 		# Already seen this run — show the menu as-is and drop the reveal scaffolding.
 		intro_overlay.queue_free()
-		select_level_button.grab_focus()
+		campaign_button.grab_focus()
 		return
 	_intro_faded = [
-		background, overlay, title, tagline, select_level_button, settings_button, quit_button
+		background,
+		overlay,
+		title,
+		tagline,
+		campaign_button,
+		workshop_button,
+		settings_button,
+		quit_button
 	]
 	_run_intro()
 
@@ -104,7 +112,8 @@ func _run_intro() -> void:
 	t.parallel().tween_property(overlay, "modulate:a", 1.0, CROSSFADE)
 	# Then the menu options surface.
 	t.chain().tween_property(tagline, "modulate:a", 1.0, UI_FADE)
-	t.parallel().tween_property(select_level_button, "modulate:a", 1.0, UI_FADE)
+	t.parallel().tween_property(campaign_button, "modulate:a", 1.0, UI_FADE)
+	t.parallel().tween_property(workshop_button, "modulate:a", 1.0, UI_FADE)
 	t.parallel().tween_property(settings_button, "modulate:a", 1.0, UI_FADE)
 	t.parallel().tween_property(quit_button, "modulate:a", 1.0, UI_FADE)
 	t.chain().tween_callback(_finalize_intro.bind(false))
@@ -148,11 +157,15 @@ func _finalize_intro(skipped: bool) -> void:
 	GameState.intro_played = true
 	# Seed keyboard focus only now, so arrows/Enter (and a button's wired hover sound)
 	# can't fire mid-reveal.
-	select_level_button.grab_focus()
+	campaign_button.grab_focus()
 
 
-func _on_select_level_pressed() -> void:
+func _on_campaign_pressed() -> void:
 	GameState.go_to_level_select()
+
+
+func _on_workshop_pressed() -> void:
+	GameState.go_to_my_levels()
 
 
 func _on_settings_pressed() -> void:

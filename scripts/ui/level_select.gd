@@ -14,8 +14,6 @@ var _page := 0
 @onready var prev_button: Button = $Center/VBox/PageNav/PrevButton
 @onready var next_button: Button = $Center/VBox/PageNav/NextButton
 @onready var page_label: Label = $Center/VBox/PageNav/PageLabel
-@onready var my_levels_button: Button = $Center/VBox/EditorNav/MyLevelsButton
-@onready var create_button: Button = $Center/VBox/EditorNav/CreateButton
 
 
 func _pages() -> int:
@@ -30,8 +28,6 @@ func _ready() -> void:
 		button.pressed.connect(_on_slot_pressed.bind(s))
 	prev_button.pressed.connect(_change_page.bind(-1))
 	next_button.pressed.connect(_change_page.bind(1))
-	my_levels_button.pressed.connect(GameState.go_to_my_levels)
-	create_button.pressed.connect(GameState.go_to_create_level)
 	# Open on the page holding the player's furthest descent, so a return trip lands
 	# near the next level rather than always at page 1.
 	@warning_ignore("integer_division")

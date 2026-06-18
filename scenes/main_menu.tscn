@@ -93,11 +93,17 @@ horizontal_alignment = 1
 custom_minimum_size = Vector2(0, 48)
 layout_mode = 2
 
-[node name="SelectLevelButton" type="Button" parent="Center/VBox"]
+[node name="CampaignButton" type="Button" parent="Center/VBox"]
 custom_minimum_size = Vector2(340, 60)
 layout_mode = 2
 theme_override_font_sizes/font_size = 24
-text = "SELECT LEVEL"
+text = "CAMPAIGN"
+
+[node name="WorkshopButton" type="Button" parent="Center/VBox"]
+custom_minimum_size = Vector2(340, 60)
+layout_mode = 2
+theme_override_font_sizes/font_size = 24
+text = "WORKSHOP"
 
 [node name="SettingsButton" type="Button" parent="Center/VBox"]
 custom_minimum_size = Vector2(340, 60)
@@ -200,6 +206,7 @@ text = "v0.1.3"
 horizontal_alignment = 2
 vertical_alignment = 1
 
-[connection signal="pressed" from="Center/VBox/SelectLevelButton" to="." method="_on_select_level_pressed"]
+[connection signal="pressed" from="Center/VBox/CampaignButton" to="." method="_on_campaign_pressed"]
+[connection signal="pressed" from="Center/VBox/WorkshopButton" to="." method="_on_workshop_pressed"]
 [connection signal="pressed" from="Center/VBox/SettingsButton" to="." method="_on_settings_pressed"]
 [connection signal="pressed" from="Center/VBox/QuitButton" to="." method="_on_quit_pressed"]

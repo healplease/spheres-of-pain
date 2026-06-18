@@ -158,24 +158,6 @@ layout_mode = 2
 theme_override_font_sizes/font_size = 20
 text = "NEXT ›"
 
-[node name="EditorNav" type="HBoxContainer" parent="Center/VBox"]
-layout_mode = 2
-size_flags_horizontal = 4
-theme_override_constants/separation = 20
-alignment = 1
-
-[node name="MyLevelsButton" type="Button" parent="Center/VBox/EditorNav"]
-custom_minimum_size = Vector2(240, 48)
-layout_mode = 2
-theme_override_font_sizes/font_size = 20
-text = "MY LEVELS"
-
-[node name="CreateButton" type="Button" parent="Center/VBox/EditorNav"]
-custom_minimum_size = Vector2(240, 48)
-layout_mode = 2
-theme_override_font_sizes/font_size = 20
-text = "CREATE LEVEL"
-
 [node name="BackButton" type="Button" parent="Center/VBox"]
 custom_minimum_size = Vector2(200, 48)
 layout_mode = 2

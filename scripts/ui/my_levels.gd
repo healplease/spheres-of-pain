@@ -29,7 +29,7 @@ func _ready() -> void:
 	prev_button.pressed.connect(_change_page.bind(-1))
 	next_button.pressed.connect(_change_page.bind(1))
 	create_button.pressed.connect(GameState.go_to_create_level)
-	back_button.pressed.connect(GameState.go_to_level_select)
+	back_button.pressed.connect(GameState.go_to_main_menu)
 	_confirm = ConfirmationDialog.new()
 	_confirm.dialog_text = "Delete this level? This cannot be undone."
 	_confirm.confirmed.connect(_do_delete)
@@ -92,4 +92,4 @@ func _do_delete() -> void:
 
 func _unhandled_input(event: InputEvent) -> void:
 	if event.is_action_pressed("ui_cancel"):
-		GameState.go_to_level_select()
+		GameState.go_to_main_menu()

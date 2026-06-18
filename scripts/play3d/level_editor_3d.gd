@@ -209,7 +209,7 @@ func _wire_inspector() -> void:
 	name_edit.text_changed.connect(func(_t: String) -> void: _refresh_status())
 	play_button.pressed.connect(_on_play)
 	save_button.pressed.connect(_on_save)
-	back_button.pressed.connect(GameState.go_to_level_select)
+	back_button.pressed.connect(GameState.go_to_my_levels)
 	handle.pressed.connect(_toggle_drawer)
 
 
@@ -363,7 +363,7 @@ func _unhandled_key_input(event: InputEvent) -> void:
 		return
 	var key := event as InputEventKey
 	if key.keycode == KEY_ESCAPE:
-		GameState.go_to_level_select()
+		GameState.go_to_my_levels()
 		return
 	if key.keycode == KEY_DELETE or key.keycode == KEY_BACKSPACE:
 		_erase_at_pointer()
