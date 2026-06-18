@@ -27,10 +27,20 @@ const MAX_HEIGHT := 14
 const DEFAULT_WIDTH := 8
 const DEFAULT_HEIGHT := 5
 
-# Side-panel widths (design px) kept clear of the camera frame so the board never
-# tucks under the palette (left) or inspector (right).
-const RESERVE_LEFT := 200.0
-const RESERVE_RIGHT := 320.0
+# Screen margins (design px) kept clear of the camera frame so the board sits
+# centred with equal gaps on both sides: the palette lives in the left gap, the
+# inspector drawer in the right one. The field clears the drawer's open width.
+const RESERVE_LEFT := 346.0
+const RESERVE_RIGHT := 346.0
+
+# The inspector drawer slides horizontally between these x positions (design px):
+# open shows the whole panel in the right margin; closed parks it off-screen with
+# only its handle peeking at the screen edge.
+const DRAWER_OPEN_X := 934.0
+const DRAWER_CLOSED_X := 1250.0
+const DRAWER_SLIDE := 0.22
+
+const BLACK_SWATCH := Color(0.08, 0.08, 0.1)  # all indestructibles share one disc
 
 # Dotted hover-ring styling (logical px), matching the play aim-ray ring.
 const RING_DOT := 6.0
@@ -52,6 +62,7 @@ var _selected_tool := 0  # active brush: a colour id (>= 0) or BLACK/SPIN/BOUNCE
 var _hover_cell := Vector2i(-999, -999)
 var _has_hover := false
 var _pointer_on_board := false
+var _drawer_open := true
 var _source_path := ""  # user:// path being edited ("" = a new, unsaved level)
 
 var _mesh: SphereMesh
@@ -73,14 +84,16 @@ var _swatches: Array[EditorSwatch] = []
 @onready var drop_zone: EditorDropZone = $Ui/Root/DropZone
 @onready var color_column: VBoxContainer = $Ui/Root/Palette/Columns/ColorColumn
 @onready var black_column: VBoxContainer = $Ui/Root/Palette/Columns/BlackColumn
-@onready var width_spin: SpinBox = $Ui/Root/Inspector/VBox/WidthRow/WidthSpin
-@onready var height_spin: SpinBox = $Ui/Root/Inspector/VBox/HeightRow/HeightSpin
-@onready var name_edit: LineEdit = $Ui/Root/Inspector/VBox/NameEdit
-@onready var tagline_edit: LineEdit = $Ui/Root/Inspector/VBox/TaglineEdit
-@onready var status_label: Label = $Ui/Root/Inspector/VBox/Status
-@onready var play_button: Button = $Ui/Root/Inspector/VBox/PlayButton
-@onready var save_button: Button = $Ui/Root/Inspector/VBox/SaveButton
-@onready var back_button: Button = $Ui/Root/Inspector/VBox/BackButton
+@onready var drawer: Control = $Ui/Root/Drawer
+@onready var handle: Button = $Ui/Root/Drawer/Handle
+@onready var width_spin: SpinBox = $Ui/Root/Drawer/Inspector/VBox/WidthRow/WidthSpin
+@onready var height_spin: SpinBox = $Ui/Root/Drawer/Inspector/VBox/HeightRow/HeightSpin
+@onready var name_edit: LineEdit = $Ui/Root/Drawer/Inspector/VBox/NameEdit
+@onready var tagline_edit: LineEdit = $Ui/Root/Drawer/Inspector/VBox/TaglineEdit
+@onready var status_label: Label = $Ui/Root/Drawer/Inspector/VBox/Status
+@onready var play_button: Button = $Ui/Root/Drawer/Inspector/VBox/PlayButton
+@onready var save_button: Button = $Ui/Root/Drawer/Inspector/VBox/SaveButton
+@onready var back_button: Button = $Ui/Root/Drawer/Inspector/VBox/BackButton
 
 
 func to3d(p: Vector2) -> Vector3:
@@ -168,10 +181,11 @@ func _restore_or_blank() -> void:
 func _build_palette() -> void:
 	for i in range(BoardView3D.PALETTE.size()):
 		_add_swatch(color_column, i, BoardView3D.PALETTE[i])
-	# The "black bubbles" column: every indestructible the game renders.
-	_add_swatch(black_column, GridModel.BLACK, Color(0.07, 0.07, 0.09))
-	_add_swatch(black_column, GridModel.SPIN, Color(0.30, 0.62, 0.66))
-	_add_swatch(black_column, GridModel.BOUNCE, Color(0.80, 0.43, 0.20))
+	# The "black bubbles" column: every indestructible shares the black disc; the
+	# swatch draws an S / B glyph to mark Spin / Bounce.
+	_add_swatch(black_column, GridModel.BLACK, BLACK_SWATCH)
+	_add_swatch(black_column, GridModel.SPIN, BLACK_SWATCH)
+	_add_swatch(black_column, GridModel.BOUNCE, BLACK_SWATCH)
 
 
 func _add_swatch(column: VBoxContainer, value: int, color: Color) -> void:
@@ -196,6 +210,17 @@ func _wire_inspector() -> void:
 	play_button.pressed.connect(_on_play)
 	save_button.pressed.connect(_on_save)
 	back_button.pressed.connect(GameState.go_to_level_select)
+	handle.pressed.connect(_toggle_drawer)
+
+
+## Slide the inspector in/out. The field is framed clear of the open drawer, so this
+## is purely to declutter the view — the handle stays reachable at the screen edge.
+func _toggle_drawer() -> void:
+	_drawer_open = not _drawer_open
+	handle.text = "›" if _drawer_open else "‹"
+	var target_x := DRAWER_OPEN_X if _drawer_open else DRAWER_CLOSED_X
+	var tw := create_tween().set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_OUT)
+	tw.tween_property(drawer, "position:x", target_x, DRAWER_SLIDE)
 
 
 # --- field geometry -----------------------------------------------------------

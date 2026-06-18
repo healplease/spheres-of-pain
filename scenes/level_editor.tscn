@@ -177,86 +177,102 @@ theme_override_constants/separation = 6
 layout_mode = 2
 theme_override_constants/separation = 6
 
-[node name="Inspector" type="PanelContainer" parent="Ui/Root"]
+[node name="Drawer" type="Control" parent="Ui/Root"]
 layout_mode = 1
-anchors_preset = 1
-anchor_left = 1.0
-anchor_right = 1.0
-offset_left = -316.0
+offset_left = 934.0
 offset_top = 80.0
-offset_right = -24.0
-offset_bottom = 600.0
-grow_horizontal = 0
+offset_right = 1256.0
+offset_bottom = 650.0
+
+[node name="Handle" type="Button" parent="Ui/Root/Drawer"]
+layout_mode = 1
+anchor_top = 0.5
+anchor_bottom = 0.5
+offset_right = 30.0
+offset_top = -52.0
+offset_bottom = 52.0
+tooltip_text = "Show / hide the level panel"
+theme_override_font_sizes/font_size = 24
+text = "›"
+
+[node name="Inspector" type="PanelContainer" parent="Ui/Root/Drawer"]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+offset_left = 30.0
+grow_horizontal = 2
+grow_vertical = 2
 theme_override_styles/panel = SubResource("SB_panel")
 
-[node name="VBox" type="VBoxContainer" parent="Ui/Root/Inspector"]
+[node name="VBox" type="VBoxContainer" parent="Ui/Root/Drawer/Inspector"]
 layout_mode = 2
 theme_override_constants/separation = 12
 
-[node name="InspectorLabel" type="Label" parent="Ui/Root/Inspector/VBox"]
+[node name="InspectorLabel" type="Label" parent="Ui/Root/Drawer/Inspector/VBox"]
 layout_mode = 2
 theme_type_variation = &"TitleText"
 theme_override_colors/font_color = Color(0.78, 0.72, 0.65, 1)
 theme_override_font_sizes/font_size = 26
 text = "LEVEL"
 
-[node name="WidthRow" type="HBoxContainer" parent="Ui/Root/Inspector/VBox"]
+[node name="WidthRow" type="HBoxContainer" parent="Ui/Root/Drawer/Inspector/VBox"]
 layout_mode = 2
 theme_override_constants/separation = 12
 
-[node name="Label" type="Label" parent="Ui/Root/Inspector/VBox/WidthRow"]
+[node name="Label" type="Label" parent="Ui/Root/Drawer/Inspector/VBox/WidthRow"]
 layout_mode = 2
 size_flags_horizontal = 3
 theme_override_font_sizes/font_size = 20
 text = "Width"
 vertical_alignment = 1
 
-[node name="WidthSpin" type="SpinBox" parent="Ui/Root/Inspector/VBox/WidthRow"]
+[node name="WidthSpin" type="SpinBox" parent="Ui/Root/Drawer/Inspector/VBox/WidthRow"]
 custom_minimum_size = Vector2(96, 0)
 layout_mode = 2
 min_value = 3.0
 max_value = 16.0
 value = 8.0
 
-[node name="HeightRow" type="HBoxContainer" parent="Ui/Root/Inspector/VBox"]
+[node name="HeightRow" type="HBoxContainer" parent="Ui/Root/Drawer/Inspector/VBox"]
 layout_mode = 2
 theme_override_constants/separation = 12
 
-[node name="Label" type="Label" parent="Ui/Root/Inspector/VBox/HeightRow"]
+[node name="Label" type="Label" parent="Ui/Root/Drawer/Inspector/VBox/HeightRow"]
 layout_mode = 2
 size_flags_horizontal = 3
 theme_override_font_sizes/font_size = 20
 text = "Height"
 vertical_alignment = 1
 
-[node name="HeightSpin" type="SpinBox" parent="Ui/Root/Inspector/VBox/HeightRow"]
+[node name="HeightSpin" type="SpinBox" parent="Ui/Root/Drawer/Inspector/VBox/HeightRow"]
 custom_minimum_size = Vector2(96, 0)
 layout_mode = 2
 min_value = 2.0
 max_value = 14.0
 value = 5.0
 
-[node name="NameLabel" type="Label" parent="Ui/Root/Inspector/VBox"]
+[node name="NameLabel" type="Label" parent="Ui/Root/Drawer/Inspector/VBox"]
 layout_mode = 2
 theme_override_colors/font_color = Color(0.6, 0.56, 0.64, 1)
 theme_override_font_sizes/font_size = 18
 text = "Name"
 
-[node name="NameEdit" type="LineEdit" parent="Ui/Root/Inspector/VBox"]
+[node name="NameEdit" type="LineEdit" parent="Ui/Root/Drawer/Inspector/VBox"]
 layout_mode = 2
 placeholder_text = "Unnamed Pit"
 
-[node name="TaglineLabel" type="Label" parent="Ui/Root/Inspector/VBox"]
+[node name="TaglineLabel" type="Label" parent="Ui/Root/Drawer/Inspector/VBox"]
 layout_mode = 2
 theme_override_colors/font_color = Color(0.6, 0.56, 0.64, 1)
 theme_override_font_sizes/font_size = 18
 text = "Tagline"
 
-[node name="TaglineEdit" type="LineEdit" parent="Ui/Root/Inspector/VBox"]
+[node name="TaglineEdit" type="LineEdit" parent="Ui/Root/Drawer/Inspector/VBox"]
 layout_mode = 2
 placeholder_text = "A line of lore..."
 
-[node name="Status" type="Label" parent="Ui/Root/Inspector/VBox"]
+[node name="Status" type="Label" parent="Ui/Root/Drawer/Inspector/VBox"]
 custom_minimum_size = Vector2(0, 48)
 layout_mode = 2
 theme_override_colors/font_color = Color(0.72, 0.68, 0.74, 1)
@@ -264,19 +280,19 @@ theme_override_font_sizes/font_size = 16
 autowrap_mode = 2
 vertical_alignment = 1
 
-[node name="PlayButton" type="Button" parent="Ui/Root/Inspector/VBox"]
+[node name="PlayButton" type="Button" parent="Ui/Root/Drawer/Inspector/VBox"]
 custom_minimum_size = Vector2(0, 48)
 layout_mode = 2
 theme_override_font_sizes/font_size = 22
 text = "PLAY"
 
-[node name="SaveButton" type="Button" parent="Ui/Root/Inspector/VBox"]
+[node name="SaveButton" type="Button" parent="Ui/Root/Drawer/Inspector/VBox"]
 custom_minimum_size = Vector2(0, 48)
 layout_mode = 2
 theme_override_font_sizes/font_size = 22
 text = "SAVE"
 
-[node name="BackButton" type="Button" parent="Ui/Root/Inspector/VBox"]
+[node name="BackButton" type="Button" parent="Ui/Root/Drawer/Inspector/VBox"]
 custom_minimum_size = Vector2(0, 44)
 layout_mode = 2
 theme_override_font_sizes/font_size = 18

@@ -50,6 +50,24 @@ func _draw() -> void:
 		draw_circle(c, r + 3.0, Color(0.86, 0.13, 0.12, 0.9))  # red focus ring
 	draw_circle(c, r, swatch_color)
 	draw_arc(c, r, 0.0, TAU, 40, Color(0, 0, 0, 0.55), 2.0, true)
+	# Spin/Bounce share the black disc; a letter on top tells them apart.
+	var glyph := _glyph()
+	var font := get_theme_default_font()
+	if glyph != "" and font != null:
+		var fs := int(r)
+		var ts := font.get_string_size(glyph, HORIZONTAL_ALIGNMENT_LEFT, -1, fs)
+		var pos := Vector2(c.x - ts.x * 0.5, c.y + font.get_ascent(fs) - ts.y * 0.5)
+		draw_string(font, pos, glyph, HORIZONTAL_ALIGNMENT_LEFT, -1, fs, Color(0.9, 0.86, 0.92))
+
+
+func _glyph() -> String:
+	match value:
+		GridModel.SPIN:
+			return "S"
+		GridModel.BOUNCE:
+			return "B"
+		_:
+			return ""
 
 
 func _gui_input(event: InputEvent) -> void:
