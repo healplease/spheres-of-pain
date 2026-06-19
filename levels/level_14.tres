@@ -6,7 +6,7 @@
 script = ExtResource("1_lvl")
 id = 14
 title = "Choir of Wheels"
-lore_fragment = "Five eyes, five wheels, all turning out of time. Whatever you place, the wheels will rearrange."
+lore_fragment = "Five wheels, turning out of time. Whatever you give the Vigil, the wheels rearrange."
 width = 11
 num_colors = 3
 danger_row = 15

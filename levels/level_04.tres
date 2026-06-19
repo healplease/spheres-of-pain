@@ -6,7 +6,7 @@
 script = ExtResource("1_lvl")
 id = 4
 title = "Hollow Choir"
-lore_fragment = "The choir lost its voices. The echo kept singing."
+lore_fragment = "Release the choir and the singing stops. They will not thank you for the silence."
 width = 12
 num_colors = 4
 danger_row = 15

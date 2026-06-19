@@ -6,7 +6,7 @@
 script = ExtResource("1_lvl")
 id = 15
 title = "The Spiteful Engine"
-lore_fragment = "It turns what you give it and spits back what you throw. Two cruelties, one machine, and you in its teeth."
+lore_fragment = "It turns what you place and spits back what you throw. The Last Warden is the last face in the wall."
 width = 12
 num_colors = 4
 danger_row = 16

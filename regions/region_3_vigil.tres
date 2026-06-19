@@ -1,0 +1,13 @@
+[gd_resource type="Resource" script_class="RegionResource" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scripts/core/region_resource.gd" id="1_reg"]
+
+[resource]
+script = ExtResource("1_reg")
+id = 2
+title = "The Ashen Vigil"
+first_level = 11
+last_level = 15
+framing_line = "The deep machinery. Here the wall has learned to turn, and to refuse."
+boss_name = "The Last Warden"
+accent = Color(0.5, 0.74, 0.66, 1)

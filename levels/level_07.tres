@@ -6,7 +6,7 @@
 script = ExtResource("1_lvl")
 id = 7
 title = "The Drowned Bell"
-lore_fragment = "It tolls beneath the water. Each toll is a name."
+lore_fragment = "A bell tolls under the water. Each toll is a name you came to unmake."
 width = 14
 num_colors = 5
 danger_row = 16

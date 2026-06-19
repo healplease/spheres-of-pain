@@ -1,0 +1,25 @@
+[gd_resource type="Resource" script_class="NarratorLines" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scripts/core/narrator_lines.gd" id="1_nl"]
+
+[resource]
+script = ExtResource("1_nl")
+pools = {
+"descent": PackedStringArray("You descend again. The dead do not mind the company.", "Down once more. The wall has not missed you, but it has kept your place.", "Back to the work. The pit does not thank the gravedigger, but it expects him.", "You return to the wall. It is no emptier than you left it."),
+"big_clear": PackedStringArray("So many, freed at once. They will not thank you.", "A whole choir let go in a breath. Listen — none of them sing your name.", "You unmade a crowd of them. The wall barely notices the gap.", "Mercy, or ruin. You will not be told which, and you freed them anyway."),
+"lucky_chain": PackedStringArray("How easily it comes apart. Mind it does not teach you confidence.", "The forgotten let go the moment their neighbours did. Do not call it skill.", "One touch and a quarter of the wall surrenders. The pit allows it, this once."),
+"danger_rising": PackedStringArray("The wall remembers every face it has swallowed. It would like yours.", "The dead crowd toward you now. They are not in a hurry; they have time.", "Closer. The line below is not a threat, only a promise kept eventually."),
+"victory": PackedStringArray("The wall is quiet. For now you are not in it.", "Done. The dead are released, and the silence is the only thanks you get.", "Clear. Climb, gravedigger — there is always more wall below."),
+"defeat": PackedStringArray("And so you join the pattern you came to break.", "The dead reclaim you. You knew the work would end this way.", "You are in the wall now. Someone else will be sent to free you. They will not hurry.")
+}
+region_pools = {
+0: {
+"descent": PackedStringArray("The Ossuary again. The shallow dead are the gentlest — and the most numerous.", "Down into the bone. Here you learned the work; here it forgives you the least.")
+},
+1: {
+"descent": PackedStringArray("The Cloister is still flooded. The drowned have learned to wait under the water.", "Down where it floods. The bells will name you if you let them.")
+},
+2: {
+"descent": PackedStringArray("The Vigil turns whether you watch or not. Down, then — it has been expecting you.", "Into the ash. Down here the wall throws your gifts back; bring patience instead.")
+}
+}

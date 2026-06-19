@@ -6,7 +6,7 @@
 script = ExtResource("1_lvl")
 id = 1
 title = "The Shallow Vein"
-lore_fragment = "The pit breathes. Feed it colour and it sleeps."
+lore_fragment = "You come down into the Ossuary. Here the dead lie shallow — begin with them."
 width = 9
 num_colors = 3
 danger_row = 14

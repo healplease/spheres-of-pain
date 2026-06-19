@@ -6,7 +6,7 @@
 script = ExtResource("1_lvl")
 id = 11
 title = "The Turning"
-lore_fragment = "One eye at the centre, and it never blinks. It only turns, and the colours turn with it."
+lore_fragment = "The Ashen Vigil is machinery now. One eye at its centre turns, and the colours turn with it."
 width = 9
 num_colors = 3
 danger_row = 14

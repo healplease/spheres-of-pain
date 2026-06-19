@@ -1,4 +1,9 @@
+# gdlint:disable=max-public-methods
 extends Node
+
+## This autoload is the project's navigation/state facade, so it legitimately exposes many
+## small public methods (scene transitions + region/level lookups) — the metric is a false
+## positive here; suppressed per the project's gdlint convention (directive must be line 1).
 
 ## Autoload (registered as GameState): owns scene flow, the currently selected
 ## level, and unlock progress. All navigation between menu / level select / play
@@ -6,11 +11,24 @@ extends Node
 
 const LEVEL_COUNT := 15
 const MAIN_MENU_SCENE := "res://scenes/main_menu.tscn"
-const LEVEL_SELECT_SCENE := "res://scenes/level_select.tscn"
+# The campaign hub is the vertical descent map (replaces the old paged level_select grid).
+# Repointing this const reroutes go_to_level_select(), the default return_scene, and the
+# end-panel "menu" exit in one place.
+const LEVEL_SELECT_SCENE := "res://scenes/descent_map.tscn"
 const SETTINGS_SCENE := "res://scenes/settings.tscn"
 const PLAY_SCENE := "res://scenes/level_3d.tscn"
 const EDITOR_SCENE := "res://scenes/level_editor.tscn"
 const MY_LEVELS_SCENE := "res://scenes/my_levels.tscn"
+const EPILOGUE_SCENE := "res://scenes/epilogue.tscn"
+
+## The named regions of the descent, in order top→bottom. Each groups a contiguous block
+## of campaign levels (see RegionResource); the descent map renders them and the Narrator
+## keys region sub-pools by their id. Loaded lazily + cached on first use.
+const REGION_PATHS := [
+	"res://regions/region_1_ossuary.tres",
+	"res://regions/region_2_cloister.tres",
+	"res://regions/region_3_vigil.tres",
+]
 
 var progress := ProgressStore.new()
 var selected_index: int = -1  # -1 = free play / draft / user level (no unlock progress)
@@ -31,9 +49,40 @@ var editor_source_path: String = ""
 ## persists, so the title reveal fires only on the very first menu load per run.
 var intro_played: bool = false
 
+## Cached region resources (lazy — built on first regions() call so a broken region file
+## degrades to "no grouping", not a boot crash).
+var _regions: Array[RegionResource] = []
+
 
 static func level_path(i: int) -> String:
 	return "res://levels/level_%02d.tres" % i
+
+
+## The descent's regions, in order. Loaded + cached once; a region file that fails to load
+## is skipped (logged), so the map/narrator degrade gracefully rather than crash.
+func regions() -> Array[RegionResource]:
+	if _regions.is_empty():
+		for p: String in REGION_PATHS:
+			var r := load(p) as RegionResource
+			if r == null:
+				Log.error(Log.FLOW, "region load failed", {"path": p})
+				continue
+			_regions.append(r)
+	return _regions
+
+
+## The region a campaign level index belongs to, or null if none claims it.
+func region_for_level(level_index: int) -> RegionResource:
+	for r in regions():
+		if r.contains(level_index):
+			return r
+	return null
+
+
+## The region id for a level (for Narrator region sub-pools); -1 when no region claims it.
+func region_id_for_level(level_index: int) -> int:
+	var r := region_for_level(level_index)
+	return r.id if r != null else -1
 
 
 ## Load + validate a built-in level file; null (with a pushed error) on any problem
@@ -81,6 +130,20 @@ func retry_level() -> void:
 
 func has_next() -> bool:
 	return selected_index > 0 and selected_index < LEVEL_COUNT
+
+
+## True once the whole descent has been cleared (the final level beaten at least once).
+func is_descent_complete() -> bool:
+	return progress.highest_unlocked > LEVEL_COUNT
+
+
+## The end-of-descent epilogue (shown after the final campaign level is won). Its own scene,
+## not the in-level end panel; exits to the main menu like the other hub screens.
+func go_to_epilogue() -> void:
+	selected_index = -1
+	selected_level = null
+	Log.info(Log.FLOW, "scene", {"to": "epilogue"})
+	get_tree().change_scene_to_file(EPILOGUE_SCENE)
 
 
 func start_next() -> void:

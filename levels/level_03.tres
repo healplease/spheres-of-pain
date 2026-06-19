@@ -6,7 +6,7 @@
 script = ExtResource("1_lvl")
 id = 3
 title = "The First Teeth"
-lore_fragment = "Black enamel never rots. It only waits."
+lore_fragment = "The black ones will not be freed. Black enamel never rots — work around it."
 width = 11
 num_colors = 4
 danger_row = 14

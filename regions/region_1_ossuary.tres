@@ -1,0 +1,13 @@
+[gd_resource type="Resource" script_class="RegionResource" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scripts/core/region_resource.gd" id="1_reg"]
+
+[resource]
+script = ExtResource("1_reg")
+id = 0
+title = "The Ossuary"
+first_level = 1
+last_level = 5
+framing_line = "The shallow dead, near the mouth of the pit. You learn the work on them."
+boss_name = "The Tally-Keeper"
+accent = Color(0.74, 0.46, 0.33, 1)

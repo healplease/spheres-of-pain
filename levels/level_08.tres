@@ -6,7 +6,7 @@
 script = ExtResource("1_lvl")
 id = 8
 title = "Sleepless Hive"
-lore_fragment = "The hive does not sleep. It counts."
+lore_fragment = "The drowned do not sleep. They count the freed, and they count the ones you leave."
 width = 16
 num_colors = 5
 danger_row = 15

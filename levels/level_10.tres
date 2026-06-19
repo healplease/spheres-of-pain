@@ -6,7 +6,7 @@
 script = ExtResource("1_lvl")
 id = 10
 title = "The Still Heart"
-lore_fragment = "Make it still. Make it stay still. Then run."
+lore_fragment = "Still the heart of the Cloister, then climb. The Choirmistress keeps the deep."
 width = 18
 num_colors = 6
 danger_row = 16

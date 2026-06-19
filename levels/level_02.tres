@@ -6,7 +6,7 @@
 script = ExtResource("1_lvl")
 id = 2
 title = "Cold Cradle"
-lore_fragment = "Something was rocked to sleep here. Do not wake it."
+lore_fragment = "Each orb is a soul the stone would not surrender. Match like to like, and it is let go."
 width = 10
 num_colors = 3
 danger_row = 14

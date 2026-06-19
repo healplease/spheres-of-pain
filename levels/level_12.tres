@@ -6,7 +6,7 @@
 script = ExtResource("1_lvl")
 id = 12
 title = "The Recoil"
-lore_fragment = "Throw yourself at it and it throws you back. The pit has learned to say no."
+lore_fragment = "Throw a soul at the Vigil and it throws it back. The pit has learned to say no."
 width = 9
 num_colors = 3
 danger_row = 14

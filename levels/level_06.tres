@@ -6,7 +6,7 @@
 script = ExtResource("1_lvl")
 id = 6
 title = "Ribcage"
-lore_fragment = "Whatever owned these bones is still using them."
+lore_fragment = "Below the Ossuary the pit floods. Whatever owns these ribs is still wearing them."
 width = 14
 num_colors = 5
 danger_row = 15

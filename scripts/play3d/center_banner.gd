@@ -77,24 +77,31 @@ func show_intro(title: String, lore: String) -> void:
 
 
 ## The verdict banner + choice panel. `show_next`/`show_retry` decide which choices
-## appear (the controller computes them from level + progress state).
-func show_end(msg: String, won: bool, show_next: bool, show_retry: bool) -> void:
+## appear (the controller computes them from level + progress state). An optional
+## `epitaph` (a grim souls-freed tally) rides the now-idle lore line beneath the verdict.
+func show_end(msg: String, won: bool, show_next: bool, show_retry: bool, epitaph := "") -> void:
 	_ended = true
 	_banner_label.text = msg
 	# The verdict reads against the board on its own soft black bar (no tagline now);
-	# the lose verdict turns red ("THE SPHERES CONSUME YOU"), the win stays pale.
+	# the lose verdict turns red, the win stays pale (relief, not fanfare).
 	_banner_label.add_theme_color_override("font_color", BANNER_PALE if won else BANNER_RED)
 	_size_text_backdrop(_banner_bg, _banner_label, TITLE_BG_PAD_Y)
 	_fade_in(_banner_bg, FADE_IN_TIME)
 	_fade_in(_banner_label, FADE_IN_TIME)
-	# The tagline (and its bar) belong to the intro only — make sure neither lingers
-	# if the game ended mid-intro.
+	# The intro tagline is gone now; the lore line is reused for the epitaph (if any),
+	# fading in a beat after the verdict. With no epitaph it simply stays hidden.
 	_kill_fade(_lore_label)
-	_lore_label.visible = false
-	_lore_label.modulate.a = 1.0
 	_kill_fade(_lore_bg)
-	_lore_bg.visible = false
-	_lore_bg.modulate.a = 1.0
+	if epitaph != "":
+		_lore_label.text = epitaph
+		_size_text_backdrop(_lore_bg, _lore_label, TEXT_BG_PAD_Y)
+		_fade_in(_lore_bg, FADE_IN_TIME, 0.5)
+		_fade_in(_lore_label, FADE_IN_TIME, 0.5)
+	else:
+		_lore_label.visible = false
+		_lore_label.modulate.a = 1.0
+		_lore_bg.visible = false
+		_lore_bg.modulate.a = 1.0
 	_next_button.visible = show_next
 	_retry_button.visible = show_retry
 	# The verdict lands first; the choices surface a beat later.

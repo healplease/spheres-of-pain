@@ -1,0 +1,13 @@
+[gd_resource type="Resource" script_class="RegionResource" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scripts/core/region_resource.gd" id="1_reg"]
+
+[resource]
+script = ExtResource("1_reg")
+id = 1
+title = "The Drowned Cloister"
+first_level = 6
+last_level = 10
+framing_line = "Where the pit floods, and a drowned order still keeps its dead."
+boss_name = "The Choirmistress"
+accent = Color(0.4, 0.62, 0.82, 1)

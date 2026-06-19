@@ -23,6 +23,7 @@ Log="*res://scripts/log.gd"
 GameState="*res://scripts/game_state.gd"
 Sound="*res://scripts/sound_manager.gd"
 Settings="*res://scripts/settings.gd"
+Narrator="*res://scripts/narrator.gd"
 
 [display]
 

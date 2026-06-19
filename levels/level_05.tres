@@ -6,7 +6,7 @@
 script = ExtResource("1_lvl")
 id = 5
 title = "Twin Gallows"
-lore_fragment = "Two ropes, one verdict. The spheres remember the weight."
+lore_fragment = "Every shot you waste, the dead crowd back to fill it. The Tally-Keeper is counting below."
 width = 12
 num_colors = 4
 danger_row = 15

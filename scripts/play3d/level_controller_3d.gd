@@ -34,6 +34,15 @@ const PREVIEW_LAND_SCALE := 1.0
 const PREVIEW_RING_SEGMENTS := 48  # polyline resolution of the ring (higher = smoother)
 # Sentinel for _update_heartbeat's optional rows_left arg (see the danger section below).
 const ROWS_TO_DANGER_UNSET := 0x7fffffff  # "not supplied" sentinel for _update_heartbeat
+# Narrator event gates — restraint is the brand, so only rare, earned moments speak. A clear
+# must free at least this many spheres to earn a "big clear" line; an orphan sweep at least
+# this many (and bigger than the matched pop) to earn the rarer "lucky chain" line.
+const NARR_BIG_CLEAR_MIN := 8
+const NARR_LUCKY_ORPHAN_MIN := 6
+# Minimum gap (ms) between *ambient* narrator barks (big clear / lucky chain / danger rising)
+# so the voice doesn't chatter when the player clears fast. Milestone lines — descent at the
+# start, victory/defeat at the end — bypass it and always speak.
+const NARR_COOLDOWN_MSEC := 17000
 
 # The intro/end overlay (banner, lore, choice panel, fades) lives in CenterBanner;
 # the danger heartbeat/visuals live in DangerView. Both are driven from here.
@@ -79,6 +88,9 @@ var _aim_dirty := true
 # fire button is held, so the ray appears only during an aim. Seeded in _ready().
 var _aim_active := true
 var _shots_fired := 0  # HUD counter; bumped on every shot
+# Cumulative souls unmade this level (matched pops + the orphans they sweep). Diegetically
+# "souls freed"; fuels the grim end-screen epitaph. Never reset mid-level.
+var _souls_freed := 0
 # The danger subsystem (heartbeat audio + line/vignette shaders) lives in DangerView.
 # _build_frame creates the bottom-bar material into _danger_line_mat; _ready hands it
 # and the vignette material to the view, then set_tier() is driven via _update_heartbeat.
@@ -86,6 +98,10 @@ var _danger_view: DangerView
 var _danger_line_mat: ShaderMaterial  # the bottom miss-exit bar (danger_line.gdshader)
 var _center_banner: CenterBanner  # owns the intro/end overlay + its fades
 var _stage_view: StageView  # owns the camera, backdrop, embers, environment
+var _narrator_view: NarratorView  # owns the grim narrator subtitle (independent of the banner)
+var _region_id := -1  # current level's region, for Narrator sub-pools; -1 = none / free play
+var _last_danger_bucket := 0  # last danger tier (0 none / 1 slow / 2 fast); narrate only on a rise
+var _last_say_msec := 0  # when the narrator last spoke (ms); gates ambient barks by the cooldown
 
 @onready var world_env: WorldEnvironment = $WorldEnvironment
 @onready var light: DirectionalLight3D = $DirectionalLight3D
@@ -106,6 +122,8 @@ var _stage_view: StageView  # owns the camera, backdrop, embers, environment
 @onready var next_button: Button = $Ui/EndPanel/NextButton
 @onready var retry_button: Button = $Ui/EndPanel/RetryButton
 @onready var menu_button: Button = $Ui/EndPanel/MenuButton
+@onready var narrator_bg: ColorRect = $Ui/NarratorBg
+@onready var narrator_line: Label = $Ui/NarratorLine
 
 
 func to3d(p: Vector2) -> Vector3:
@@ -208,6 +226,16 @@ func _ready() -> void:
 		menu_button
 	)
 
+	# The grim narrator owns its own subtitle low on the HUD, independent of the centre
+	# banner, so a bark and the level lore can coexist. The line pools + never-repeat memory
+	# live in the Narrator autoload; this view only fades whatever line it's handed.
+	_narrator_view = NarratorView.new()
+	_narrator_view.setup(narrator_line, narrator_bg)
+	_region_id = GameState.region_id_for_level(_level.id) if _level != null else -1
+	# Start the level "on cooldown" so ambient barks hold for a beat; the forced descent line
+	# still speaks (after the intro), and ambient lines resume once the cooldown elapses.
+	_last_say_msec = Time.get_ticks_msec()
+
 	# Danger subsystem: hand the bottom-line bar material (built in _build_frame) and
 	# the red vignette material to a DangerView, which owns the heartbeat + shaders.
 	_danger_view = DangerView.new()
@@ -216,6 +244,9 @@ func _ready() -> void:
 	level_name_label.text = _level.title if _level != null else "THE PIT"
 
 	_update_status()
+	# Seed the danger tier from the starting board so a level that opens near the line doesn't
+	# spuriously narrate "danger rising" on its first grow (only a genuine worsening should).
+	_last_danger_bucket = _danger_bucket(model.rows_to_danger())
 	_update_heartbeat()  # an authored level could start already close to the line
 
 	(
@@ -239,6 +270,7 @@ func _ready() -> void:
 
 	if _level != null:
 		_center_banner.show_intro(_level.title, _level.lore_fragment)
+		_say_descent_after_intro()
 
 	if OS.has_environment("SOP_AUTOPLAY"):
 		var t := Timer.new()
@@ -541,6 +573,9 @@ func _on_landed(cell: Vector2i, color: int) -> void:
 		# One cluster-sized pop burst, not one sound per sphere — keeps big clears
 		# (the matched group plus any spheres it orphans) from turning to noise.
 		Sound.play_cluster_pop(res.popped.size() + res.orphaned.size())
+		# Every removed sphere is a soul let go of the wall — tally them for the epitaph.
+		_souls_freed += res.popped.size() + res.orphaned.size()
+		_narrate_clear(res.popped.size(), res.orphaned.size())
 	else:
 		model.grow()
 	# Spin spheres react to the just-landed shot, cycling their neighbours' colours.
@@ -574,6 +609,7 @@ func _on_landed(cell: Vector2i, color: int) -> void:
 	_update_status(colored)
 	# a grow may have closed on the line; a pop may have backed off it
 	_update_heartbeat(model.danger_row - deepest)
+	_narrate_danger(model.danger_row - deepest)
 	# Hold the verdict until the board has visually settled — the win banner must
 	# not appear while the last cluster is still popping.
 	if model.is_won() or model.is_lost():
@@ -631,10 +667,13 @@ func _update_heartbeat(rows_left: int = ROWS_TO_DANGER_UNSET) -> void:
 
 
 func _check_end() -> void:
+	# Verdicts speak the fiction (§2.10): a win is exhausted relief, never a fanfare; a
+	# loss is the dead reclaiming you. Both lines stay short to fit the title-size banner —
+	# the longer grave-courtesy + the souls tally ride the epitaph beneath them.
 	if model.is_won():
-		_end("THE FIELD IS STILL.\nYou survive.", true)
+		_end("THE WALL IS QUIET.\nYou are not in it.", true)
 	elif model.is_lost():
-		_end("THE SPHERES CONSUME YOU.", false)
+		_end("THE DEAD RECLAIM YOU.", false)
 
 
 func _end(msg: String, won: bool) -> void:
@@ -658,12 +697,33 @@ func _end(msg: String, won: bool) -> void:
 	_update_preview_visibility()  # hide the ray at once, even if a finger is still down (Hold)
 	if won and _level != null:
 		GameState.complete_current()
+	# Beating the final campaign level ends the whole descent: hold the verdict a beat, let
+	# the voice land, then move to the epilogue (its own scene) instead of the ordinary end
+	# panel. Esc still skips out to the hub during the pause.
+	if won and GameState.selected_index == GameState.LEVEL_COUNT:
+		_center_banner.show_end(msg, true, false, false, _epitaph(true))
+		_say("victory", true)
+		await get_tree().create_timer(3.5).timeout
+		if is_inside_tree():
+			GameState.go_to_epilogue()
+		return
 	# The visual verdict + choice panel are the CenterBanner's job; we just decide
 	# which choices apply (next only on an authored win with a level after it; retry
 	# only on an authored loss — free play has neither).
 	var show_next := won and _level != null and GameState.has_next()
 	var show_retry := not won and _level != null
-	_center_banner.show_end(msg, won, show_next, show_retry)
+	_center_banner.show_end(msg, won, show_next, show_retry, _epitaph(won))
+	# The voice has the last word, on the HUD beneath the verdict (it interrupts any
+	# clear/danger bark from the final shot). Forced — the end of a level always speaks.
+	_say("victory" if won else "defeat", true)
+
+
+## A one-breath souls-freed tally beneath the verdict — the fiction's "grim epitaph", not
+## a score. Carries the longer grave-courtesy the title-size verdict has no room for.
+func _epitaph(won: bool) -> String:
+	if won:
+		return "%d freed. Not one thanked you." % _souls_freed
+	return "%d freed; and so you join the pattern you came to break." % _souls_freed
 
 
 ## The top-left HUD counter: coloured spheres still on the field (the clear target)
@@ -675,6 +735,63 @@ func _update_status(colored: int = -1) -> void:
 	if colored < 0:
 		colored = model.count_colored()
 	counter_label.text = "Spheres  %d\nShots  %d" % [colored, _shots_fired]
+
+
+# --- narrator -----------------------------------------------------------------
+
+
+## Show a narrator line for an event, region sub-pool preferred. Ambient barks are rate-limited
+## by NARR_COOLDOWN_MSEC so the voice doesn't chatter under fast play; pass `force` for milestone
+## lines (descent / victory / defeat) that must always speak. The line is only drawn from the
+## pool (consuming the bag) when it will actually show, so a suppressed bark wastes no variety.
+func _say(event_key: String, force := false) -> void:
+	if _narrator_view == null:
+		return
+	var now := Time.get_ticks_msec()
+	if not force and now - _last_say_msec < NARR_COOLDOWN_MSEC:
+		return
+	var line := Narrator.line_for(event_key, _region_id)
+	if line == "":
+		return
+	_last_say_msec = now
+	Log.debug(Log.PLAY, "narrator", {"event": event_key, "region": _region_id, "forced": force})
+	_narrator_view.show_line(line)
+
+
+## Let the centre intro (title + lore) have its moment, then the narrator murmurs from the
+## bottom as it fades — two beats, not one cluttered frame.
+func _say_descent_after_intro() -> void:
+	await get_tree().create_timer(4.0).timeout
+	if is_inside_tree() and not game_over:
+		_say("descent", true)
+
+
+## A clear earns at most one bark, gated hard so routine pops stay silent: a sweep that dwarfs
+## its trigger reads as a "lucky chain"; otherwise a large total is a "big clear".
+func _narrate_clear(popped: int, orphaned: int) -> void:
+	if orphaned >= NARR_LUCKY_ORPHAN_MIN and orphaned > popped:
+		_say("lucky_chain")
+	elif popped + orphaned >= NARR_BIG_CLEAR_MIN:
+		_say("big_clear")
+
+
+## Narrate the dread only when proximity to the lose line genuinely worsens (a tier rise),
+## never every shot — and never as the field crosses it (defeat speaks then instead).
+func _narrate_danger(rows_left: int) -> void:
+	var bucket := _danger_bucket(rows_left)
+	if bucket > _last_danger_bucket and bucket > 0 and not game_over:
+		_say("danger_rising")
+	_last_danger_bucket = bucket
+
+
+## Danger tier from rows-to-line, matching DangerView: 1 row = FAST (2), 2 rows = SLOW (1),
+## anything else (safe, or already over the line) = 0.
+func _danger_bucket(rows_left: int) -> int:
+	if rows_left == 1:
+		return 2
+	if rows_left == 2:
+		return 1
+	return 0
 
 
 # --- dev autoplay -------------------------------------------------------------

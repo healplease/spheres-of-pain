@@ -6,7 +6,7 @@
 script = ExtResource("1_lvl")
 id = 9
 title = "Mother of Mouths"
-lore_fragment = "Every mouth she opens is another way in. None is a way out."
+lore_fragment = "Every mouth she opens is a way in. Free them all; none of them is a way out for you."
 width = 16
 num_colors = 6
 danger_row = 16
