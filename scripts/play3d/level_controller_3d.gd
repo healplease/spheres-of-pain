@@ -10,15 +10,9 @@ extends Node3D
 const SPHERE_RADIUS := 0.46
 const FRAME_THICK := 0.3  # frame bar cross-section (metres)
 const FRAME_DEPTH := 0.6  # frame bar depth toward the camera (metres)
-const FIELD_CENTER_X := 640.0  # logical x the field + muzzle are centred on
-const TOP_Y := 80.0  # logical y of the row-0 sphere centres
-# Camera framing margins + backdrop offset live in StageView, which owns the camera.
-# Vertical stack below the danger (lose) line, in row-steps: the gun sits this far
-# below the line, then the red miss-exit bar sits this far below the gun. A smaller
-# MUZZLE_GAP lifts the whole gun+bar unit toward the field, so they sit closer to
-# the spheres at the moment those reach the line and consume them.
-const MUZZLE_GAP_ROWS := 0.3  # gun below the danger line (was 0.6 — hand-tuned 690)
-const EXIT_GAP_ROWS := 0.6  # red miss-exit bar below the gun
+# The logical play geometry (field centre, top wall, muzzle + miss-exit gaps) is derived from
+# the field size by the pure, unit-tested BoardGeometry helper. Camera framing margins +
+# backdrop offset live in StageView, which owns the camera.
 
 # Sentinel for _update_heartbeat's optional rows_left arg (see the danger section below).
 const ROWS_TO_DANGER_UNSET := 0x7fffffff  # "not supplied" sentinel for _update_heartbeat
@@ -89,7 +83,11 @@ var game_over := false
 
 var _s := 1.0 / 56.0  # metres per logical pixel = 1/diameter; set in _ready
 var _play_bottom := 720.0  # logical miss-exit line (below the muzzle)
+var _geom: BoardGeometry.Layout  # the derived play geometry; set in _layout_field
 var _level: LevelResource = null  # null = free play (random board)
+# Cells the objective watches ('@'/'*'), cached from the level in _ready; empty for CLEAR / free
+# play. The win check (objective_met) waits for all of these to empty out.
+var _objective_cells: Array[Vector2i] = []
 var _bag := ShotBag.new()  # decides the gun's next colour (true-random or bag mode)
 var _mesh: SphereMesh
 var _mats: Array[StandardMaterial3D] = []
@@ -105,6 +103,10 @@ var _shots_fired := 0  # HUD counter; bumped on every shot
 # Cumulative souls unmade this level (matched pops + the orphans they sweep). Diegetically
 # "souls freed"; fuels the grim end-screen epitaph. Never reset mid-level.
 var _souls_freed := 0
+# Skill score for this level: matched pops modestly, the isolation sweep super-linearly, plus
+# an all-clear + economy bonus at the end (see Scoring). Never shown as a raw arcade number —
+# it resolves into one verdict word at the end ("how cleanly you ended the suffering").
+var _score := 0
 # The danger subsystem (heartbeat audio + line/vignette shaders) lives in DangerView.
 # _build_frame creates the bottom-bar material into _danger_line_mat; _ready hands it
 # and the vignette material to the view, then set_tier() is driven via _update_heartbeat.
@@ -170,6 +172,9 @@ func _ready() -> void:
 		rows = _level.rows()
 		num_colors = _level.num_colors
 		danger_row = _level.danger_row
+		# The objective cells ('@'/'*') are level metadata, not model state — cache the
+		# coordinates once so the verdict check can watch them empty out (empty for CLEAR).
+		_objective_cells = _level.objective_cells()
 		_layout_field()
 	else:
 		_pick_field_dimensions()
@@ -186,9 +191,9 @@ func _ready() -> void:
 	sim.diameter = diameter
 	sim.columns = columns
 	sim.origin = origin2d
-	sim.play_left = origin2d.x - diameter * 0.5
-	sim.play_right = origin2d.x + (columns - 1) * diameter + diameter
-	sim.play_bottom = _play_bottom
+	sim.play_left = _geom.play_left
+	sim.play_right = _geom.play_right
+	sim.play_bottom = _geom.play_bottom
 
 	# Configure the board but defer the sphere spawning to build_async (run behind the loading
 	# veil below), so a large field never freezes the window on entry.
@@ -473,18 +478,15 @@ func _pick_field_dimensions() -> void:
 	_layout_field()
 
 
-## Derive every logical coordinate from `columns` / `danger_row` (set either by
-## the random roll above or by an authored level): the board origin (field
-## centred on FIELD_CENTER_X), the muzzle MUZZLE_GAP_ROWS below the danger line,
-## and the bottom miss-exit line EXIT_GAP_ROWS below the muzzle.
+## Derive every logical coordinate from `columns` / `danger_row` (set either by the random
+## roll above or by an authored level) via the shared BoardGeometry helper: the board origin
+## (field centred), the muzzle below the danger line, the bottom miss-exit line, and the
+## bounce bounds. Cached in `_geom` so the sim config below reads the identical values.
 func _layout_field() -> void:
-	var row_step := diameter * Hex.ROW_RATIO
-	# Centre the field horizontally: with this origin, (play_left + play_right) / 2
-	# lands on FIELD_CENTER_X regardless of column count.
-	origin2d = Vector2(FIELD_CENTER_X - diameter * (columns * 0.5 - 0.25), TOP_Y)
-	var danger_y := origin2d.y + danger_row * row_step
-	muzzle2d = Vector2(FIELD_CENTER_X, danger_y + row_step * MUZZLE_GAP_ROWS)
-	_play_bottom = muzzle2d.y + row_step * EXIT_GAP_ROWS
+	_geom = BoardGeometry.compute(columns, danger_row, diameter)
+	origin2d = _geom.origin2d
+	muzzle2d = _geom.muzzle2d
+	_play_bottom = _geom.play_bottom
 
 
 ## Procedurally fill the field: every cell in the first `rows` rows takes a random
@@ -570,6 +572,8 @@ func _on_landed(cell: Vector2i, color: int) -> void:
 		Sound.play_cluster_pop(freed)
 		# Every removed sphere is a soul let go of the wall — tally them for the epitaph.
 		_souls_freed += freed
+		# Score the shot: the matched cluster modestly, the isolation sweep super-linearly.
+		_score += Scoring.shot_score(res.popped.size(), res.orphaned.size())
 		_narrator.narrate_clear(res.popped.size(), res.orphaned.size())
 		# The board lurches in proportion to how much it just lost, and throws ash, embers,
 		# bone shards and a few rising soul-wisps out of the impact cell.
@@ -603,6 +607,10 @@ func _on_landed(cell: Vector2i, color: int) -> void:
 		await get_tree().create_timer(spin_settle).timeout
 		if not is_inside_tree() or game_over:
 			return
+	# The tide (if any) drops the whole field one shot deeper — after the spin settles, before
+	# the verdict is read, so a drop that crosses the line is reckoned with this same turn.
+	if await _apply_tide():
+		return  # left the level mid-descent
 	_validate_load()
 	# Board is now in its final post-resolution state; scan it once and share the
 	# counts with the log, the HUD, and the heartbeat instead of rescanning thrice.
@@ -630,10 +638,10 @@ func _on_landed(cell: Vector2i, color: int) -> void:
 	# a grow may have closed on the line; a pop may have backed off it
 	_update_heartbeat(model.danger_row - deepest)
 	_narrator.narrate_danger(model.danger_row - deepest)
-	# Hold the verdict a beat so the final state reads before the banner. Pop/grow and
-	# spin have already settled above; the spin can push a sphere across the line, so
-	# the verdict is read here, after it.
-	if model.is_won() or model.is_lost():
+	# Hold the verdict a beat so the final state reads before the banner. Pop/grow, spin and
+	# the tide have already settled above; any of them can end the level (the spin or the tide
+	# can push a sphere across the line), so the verdict is read here, after them all.
+	if _is_objective_met() or _is_failed():
 		await get_tree().create_timer(0.25).timeout
 		if not is_inside_tree() or game_over:
 			return
@@ -709,10 +717,37 @@ func _on_missed() -> void:
 	Log.debug(Log.SHOT, "miss reshuffle", {"colored": model.count_colored()})
 	model.randomize_colors()
 	board.sync()  # reshuffle only recolours; spheres stay, materials swap in place
+	# Every shot drops the tide, a miss included — it can push the field across the line.
+	if await _apply_tide():
+		return  # left the level mid-descent
 	_validate_load()
-	shooter.enabled = true
 	_update_status()
 	_update_heartbeat()
+	# A miss can lose the level (the tide crossing the line, or the last shot of a spent budget)
+	# but never win it — nothing was cleared. Read the verdict before re-arming the gun.
+	if _is_failed() or _is_objective_met():
+		await get_tree().create_timer(0.25).timeout
+		if not is_inside_tree() or game_over:
+			return
+		_check_end()
+		return
+	shooter.enabled = true
+
+
+## Drop the dark tide one shot deeper, if this level has one. Runs after the spin settles and
+## before the verdict, so a drop that pushes the field across the line loses THIS turn. Returns
+## true if the level was torn down mid-descent (the caller must then stop touching the tree).
+func _apply_tide() -> bool:
+	if _level == null or _level.tide_rows_per_shot <= 0:
+		return false
+	var moves := model.descend(_level.tide_rows_per_shot)
+	var settle := board.animate_descend(moves)
+	if settle > 0.0:
+		Log.debug(Log.MODEL, "tide", {"rows": _level.tide_rows_per_shot, "moves": moves.size()})
+		await get_tree().create_timer(settle).timeout
+		if not is_inside_tree() or game_over:
+			return true
+	return false
 
 
 ## The slots were already advanced at fire time, but the shot that just resolved
@@ -749,18 +784,60 @@ func _update_heartbeat(rows_left: int = ROWS_TO_DANGER_UNSET) -> void:
 # --- end state ----------------------------------------------------------------
 
 
+## True when the level's victory condition is satisfied — delegates to the level's pure
+## objective_met predicate, so the win rule has one home. Free play has no level, so it clears
+## the board the old way.
+func _is_objective_met() -> bool:
+	if _level == null:
+		return model.is_won()
+	return _level.objective_met(model, _objective_cells)
+
+
+## True when the level is lost: a sphere crossed the danger line, OR a Sniper shot-budget ran out
+## before the objective was met. The objective is re-checked here so a winning final shot (which
+## also spends the last of the budget) is never read as a failure — met always beats failed.
+func _is_failed() -> bool:
+	if model.is_lost():
+		return true
+	if _level != null and _level.shot_budget > 0:
+		return _shots_fired >= _level.shot_budget and not _is_objective_met()
+	return false
+
+
+## The win banner per objective — short enough for the title font; the epitaph carries the
+## grave-courtesy + souls tally beneath it.
+func _win_verdict() -> String:
+	if _level != null:
+		match _level.objective_type:
+			LevelResource.Objective.FREE_SOUL:
+				return "THE CAGE IS OPEN.\nIt does not look back."
+			LevelResource.Objective.CLEANSE:
+				return "THE MARK IS LIFTED.\nThe stain remains in you."
+	return "THE WALL IS QUIET.\nYou are not in it."
+
+
+## The lose banner: a spent Sniper budget reads differently from being dragged under the line.
+func _lose_verdict() -> String:
+	if not model.is_lost() and _level != null and _level.shot_budget > 0:
+		return "YOUR HANDS ARE EMPTY.\nThe work undone."
+	return "THE DEAD RECLAIM YOU."
+
+
 func _check_end() -> void:
 	# Verdicts speak the fiction (§2.10): short lines to fit the banner; the grave-courtesy +
-	# souls tally ride the epitaph beneath. See docs/architecture/level-flow.md.
-	if model.is_won():
-		_end("THE WALL IS QUIET.\nYou are not in it.", true)
-	elif model.is_lost():
-		_end("THE DEAD RECLAIM YOU.", false)
+	# souls tally ride the epitaph beneath. Met is checked first so it always beats failed.
+	if _is_objective_met():
+		_end(_win_verdict(), true)
+	elif _is_failed():
+		_end(_lose_verdict(), false)
 
 
 func _end(msg: String, won: bool) -> void:
 	game_over = true
 	_narrator.mark_ended()  # a pending descent/danger bark must not speak past the verdict
+	# A win banks the marquee all-clear bonus plus any shots spared under par (the economy).
+	if won:
+		_score += Scoring.all_clear_bonus() + Scoring.economy_bonus(_par_shots(), _shots_fired)
 	(
 		Log
 		. info(
@@ -771,6 +848,8 @@ func _end(msg: String, won: bool) -> void:
 				"shots": _shots_fired,
 				"colored": model.count_colored(),
 				"max_row": model.max_row(),
+				"souls": _souls_freed,
+				"score": _score,
 			}
 		)
 	)
@@ -805,11 +884,19 @@ func _end(msg: String, won: bool) -> void:
 	_narrator.say("victory" if won else "defeat", true)
 
 
-## A one-breath souls-freed tally beneath the verdict — the fiction's "grim epitaph", not
-## a score. Carries the longer grave-courtesy the title-size verdict has no room for.
+## The level's shot budget for the efficiency tiers, or 0 (unset) for free play / a level that
+## never set par — Scoring then reads the neutral FREED tier and grants no economy bonus.
+func _par_shots() -> int:
+	return _level.par_shots if _level != null else 0
+
+
+## A one-breath tally beneath the verdict — the fiction's "grim epitaph", not a score. On a win
+## it opens with the efficiency tier word (how cleanly the suffering ended); a loss carries no
+## tier (you did not clear). Carries the grave-courtesy the title-size verdict has no room for.
 func _epitaph(won: bool) -> String:
 	if won:
-		return "%d freed. Not one thanked you." % _souls_freed
+		var t := Scoring.tier(_par_shots(), _shots_fired)
+		return "%s. %d freed. Not one thanked you." % [Scoring.tier_word(t), _souls_freed]
 	return "%d freed; and so you join the pattern you came to break." % _souls_freed
 
 
@@ -821,7 +908,40 @@ func _epitaph(won: bool) -> String:
 func _update_status(colored: int = -1) -> void:
 	if colored < 0:
 		colored = model.count_colored()
-	counter_label.text = "Spheres  %d\nShots  %d" % [colored, _shots_fired]
+	# Souls freed is understated, in fiction — not a flashing arcade score. The goal line names
+	# what this level asks for (spheres / a caged soul / a cursed cell); the shots line shows the
+	# Sniper budget when there is one.
+	counter_label.text = (
+		"%s\n%s\nSouls freed  %d" % [_goal_line(colored), _shots_line(), _souls_freed]
+	)
+
+
+## How many objective cells are still occupied (the FREE_SOUL / CLEANSE remaining count).
+func _objective_remaining() -> int:
+	var n := 0
+	for cell in _objective_cells:
+		if model.is_occupied(cell):
+			n += 1
+	return n
+
+
+## The HUD goal line: the clear target for a CLEAR level, or the remaining tagged cells for an
+## objective level.
+func _goal_line(colored: int) -> String:
+	if _level != null:
+		match _level.objective_type:
+			LevelResource.Objective.FREE_SOUL:
+				return "Caged  %d" % _objective_remaining()
+			LevelResource.Objective.CLEANSE:
+				return "Cursed  %d" % _objective_remaining()
+	return "Spheres  %d" % colored
+
+
+## The HUD shots line: a bare tally, or fired / budget when a Sniper budget caps the level.
+func _shots_line() -> String:
+	if _level != null and _level.shot_budget > 0:
+		return "Shots  %d / %d" % [_shots_fired, _level.shot_budget]
+	return "Shots  %d" % _shots_fired
 
 
 # --- dev autoplay -------------------------------------------------------------

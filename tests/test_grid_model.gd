@@ -685,3 +685,67 @@ func test_fill_random_seeds_black_obstacles() -> void:
 		if c == GridModel.BLACK:
 			black += 1
 	assert_gt(black, 0, "a positive black_fraction seeds some obstacles")
+
+
+# --- tide (descend) -----------------------------------------------------------
+
+
+func test_descend_shifts_all_cells_down() -> void:
+	var m := _make_model()
+	m.cells = {Vector2i(1, 0): 0, Vector2i(3, 4): 1, Vector2i(2, 2): GridModel.BLACK}
+	m.descend(2)
+	assert_eq(m.cells.size(), 3, "no cell lost in the drop")
+	assert_eq(m.cells.get(Vector2i(1, 2), -99), 0, "breakable rode down two rows")
+	assert_eq(m.cells.get(Vector2i(3, 6), -99), 1, "second breakable rode down two rows")
+	assert_eq(m.cells.get(Vector2i(2, 4), -99), GridModel.BLACK, "indestructible rode down too")
+	assert_false(m.cells.has(Vector2i(1, 0)), "the source cell is vacated")
+
+
+func test_descend_two_rows_preserves_adjacency() -> void:
+	# A two-row drop preserves row parity, so a connected same-colour pair stays connected —
+	# match_group sees the same cluster after the drop as before.
+	var m := _make_model()
+	m.cells = {Vector2i(1, 0): 0, Vector2i(0, 1): 0}  # neighbours (even-row delta (-1, 1))
+	assert_eq(m.match_group(Vector2i(1, 0)).size(), 2, "connected before the drop")
+	m.descend(2)
+	assert_eq(m.match_group(Vector2i(1, 2)).size(), 2, "still connected after a 2-row drop")
+
+
+func test_descend_one_row_breaks_adjacency() -> void:
+	# A one-row drop FLIPS row parity and silently re-wires adjacency — the same pair is no
+	# longer connected. This is why levels must author even drops; the hazard is pinned here.
+	var m := _make_model()
+	m.cells = {Vector2i(1, 0): 0, Vector2i(0, 1): 0}
+	assert_eq(m.match_group(Vector2i(1, 0)).size(), 2, "connected before the drop")
+	m.descend(1)
+	assert_eq(m.match_group(Vector2i(1, 1)).size(), 1, "a 1-row drop scrambled the bond apart")
+
+
+func test_descend_can_cross_danger_line() -> void:
+	var m := _make_model()
+	m.danger_row = 5
+	m.cells = {Vector2i(0, 3): 0}
+	assert_false(m.is_lost(), "safe above the line before the tide")
+	m.descend(2)
+	assert_true(m.is_lost(), "the tide pushed the field across the danger line")
+
+
+func test_descend_zero_and_negative_are_noops() -> void:
+	var m := _make_model()
+	m.cells = {Vector2i(1, 1): 0}
+	assert_true(m.descend(0).is_empty(), "0 rows -> no moves")
+	assert_true(m.descend(-2).is_empty(), "negative rows -> no moves")
+	assert_eq(m.cells, {Vector2i(1, 1): 0}, "the board is untouched by a no-op drop")
+
+
+func test_descend_returns_move_permutation() -> void:
+	# Each move is {from, to, color} with to = from + (0, rows); replaying them reproduces cells.
+	var m := _make_model()
+	m.cells = {Vector2i(1, 0): 3, Vector2i(2, 1): 4}
+	var moves := m.descend(2)
+	assert_eq(moves.size(), 2, "one move per cell")
+	var rebuilt := {}
+	for mv in moves:
+		assert_eq(mv["to"], mv["from"] + Vector2i(0, 2), "each cell dropped two rows")
+		rebuilt[mv["to"]] = mv["color"]
+	assert_eq(rebuilt, m.cells, "replaying the moves reproduces the dropped board")

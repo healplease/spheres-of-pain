@@ -43,6 +43,10 @@ const SPIN_MOVE_TIME := 0.15  # glide to the next anti-clockwise cell
 const SPIN_GROW_TIME := 0.10  # settle back to full size
 const SPIN_SHRINK_SCALE := 0.8  # how small a sphere pulls in while travelling
 
+# Tide descent: the whole field glides one drop deeper. A touch slower than a spin slide and
+# eased-in (accelerating downward) so the drop reads as weight, not a twitch.
+const DESCEND_TIME := 0.18
+
 var model: GridModel
 var diameter := 56.0
 var _s := 1.0 / 56.0  # metres per logical pixel = 1/diameter; set in setup()
@@ -198,6 +202,42 @@ func animate_spin(moves: Array) -> float:
 			. set_ease(Tween.EASE_OUT)
 		)
 	return SPIN_SHRINK_TIME + SPIN_MOVE_TIME + SPIN_GROW_TIME
+
+
+## Physically animate the tide dropping the whole field: every move slides its existing sphere
+## node from `from` to `to` (a uniform downward shift — colour rides with the node, no recolour).
+## The shift is a bijection (a cell's destination is the source of the cell `rows` below), so the
+## same two-pass re-key as animate_spin is needed before tweening — erase all sources, then place
+## every node at its destination — or a deeper cell's move would clobber a shallower node. Each
+## node then glides down. Returns the settle time (seconds) so the controller can hold the verdict.
+func animate_descend(moves: Array) -> float:
+	if moves.is_empty():
+		return 0.0
+	# Pass 1: snapshot the live nodes by their source cell before touching _spheres.
+	var hops: Array = []  # [{node: MeshInstance3D, to: Vector2i}]
+	for move in moves:
+		var from: Vector2i = move["from"]
+		if not _spheres.has(from):
+			continue  # defensive: model/view drift — skip rather than crash
+		hops.append({"node": _spheres[from], "to": move["to"]})
+	if hops.is_empty():
+		return 0.0
+	# Pass 2: re-key. Erase all sources first, then place every node at its destination.
+	for move in moves:
+		_spheres.erase(move["from"])
+	for hop in hops:
+		_spheres[hop["to"]] = hop["node"]
+	# Pass 3: glide each node to its new (deeper) cell, accelerating down for weight.
+	for hop in hops:
+		var mi: MeshInstance3D = hop["node"]
+		var tw := mi.create_tween()
+		(
+			tw
+			. tween_property(mi, "position", cell_local(hop["to"]), DESCEND_TIME)
+			. set_trans(Tween.TRANS_QUAD)
+			. set_ease(Tween.EASE_IN)
+		)
+	return DESCEND_TIME
 
 
 ## Single source of truth for the colour -> material map, shared by the board, the
