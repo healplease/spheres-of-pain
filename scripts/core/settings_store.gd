@@ -65,6 +65,10 @@ const DEF_SHADOWS := Shadows.HIGH
 const DEF_SSAO := false
 const DEF_GLOW := true
 const DEF_TEXT_GLITCH := true  # title shiver on by default (accessibility opt-out)
+# Master juice multiplier (0..1): every game-feel effect (camera shake, particles,
+# slow-mo, screen pulse, stings) scales by this. 1.0 ships the intended feel; 0 keeps
+# the game fully playable and grim on fog/ambience alone (the accessibility backbone).
+const DEF_FX_INTENSITY := 1.0
 const DEF_VOLUME := 1.0
 
 var path: String
@@ -197,6 +201,17 @@ func get_text_glitch() -> bool:
 
 func set_text_glitch(v: bool) -> void:
 	_cf.set_value(SECTION_GRAPHICS, "text_glitch", v)
+	_save()
+
+
+func get_fx_intensity() -> float:
+	return clampf(
+		float(_cf.get_value(SECTION_GRAPHICS, "fx_intensity", DEF_FX_INTENSITY)), 0.0, 1.0
+	)
+
+
+func set_fx_intensity(v: float) -> void:
+	_cf.set_value(SECTION_GRAPHICS, "fx_intensity", clampf(v, 0.0, 1.0))
 	_save()
 
 

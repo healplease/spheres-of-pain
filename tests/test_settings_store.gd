@@ -40,6 +40,7 @@ func test_defaults() -> void:
 	assert_false(s.get_ssao(), "ssao off by default")
 	assert_true(s.get_glow(), "glow on by default")
 	assert_true(s.get_text_glitch(), "text glitch on by default")
+	assert_almost_eq(s.get_fx_intensity(), 1.0, 0.001, "effects intensity ships at full")
 	for ch in SettingsStore.VOLUME_CHANNELS:
 		assert_eq(s.get_volume(ch), 1.0, "%s volume defaults to full" % ch)
 
@@ -58,6 +59,7 @@ func test_persistence_roundtrip() -> void:
 	s.set_ssao(true)
 	s.set_glow(false)
 	s.set_text_glitch(false)
+	s.set_fx_intensity(0.4)
 	s.set_volume(&"gameplay", 0.5)
 
 	var t := SettingsStore.new(TEST_PATH)  # fresh instance, same path
@@ -74,6 +76,7 @@ func test_persistence_roundtrip() -> void:
 	assert_true(t.get_ssao(), "ssao persisted")
 	assert_false(t.get_glow(), "glow persisted")
 	assert_false(t.get_text_glitch(), "text glitch persisted")
+	assert_almost_eq(t.get_fx_intensity(), 0.4, 0.001, "effects intensity persisted")
 	assert_almost_eq(t.get_volume(&"gameplay"), 0.5, 0.001, "gameplay volume persisted")
 
 
@@ -81,6 +84,14 @@ func test_volume_zero_roundtrips() -> void:
 	var s := SettingsStore.new(TEST_PATH)
 	s.set_volume(&"hud", 0.0)
 	assert_eq(SettingsStore.new(TEST_PATH).get_volume(&"hud"), 0.0, "a muted channel persists as 0")
+
+
+func test_fx_intensity_clamps_to_unit_range() -> void:
+	var s := SettingsStore.new(TEST_PATH)
+	s.set_fx_intensity(2.5)
+	assert_almost_eq(s.get_fx_intensity(), 1.0, 0.001, "above-range intensity clamps to 1")
+	s.set_fx_intensity(-1.0)
+	assert_almost_eq(s.get_fx_intensity(), 0.0, 0.001, "below-range intensity clamps to 0")
 
 
 func test_channels_are_independent() -> void:

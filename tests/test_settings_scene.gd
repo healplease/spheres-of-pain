@@ -27,7 +27,9 @@ func test_scene_builds_all_tab_rows() -> void:
 	)
 	assert_eq(_tab(scene, "Display").get_child_count(), 4, "Display: mode/resolution/vsync/fps")
 	assert_eq(
-		_tab(scene, "Graphics").get_child_count(), 5, "Graphics: aa/shadows/ssao/glow + text glitch"
+		_tab(scene, "Graphics").get_child_count(),
+		6,
+		"Graphics: aa/shadows/ssao/glow + text glitch + effects intensity"
 	)
 	assert_eq(_tab(scene, "Audio").get_child_count(), 5, "Audio: master + 4 channels")
 

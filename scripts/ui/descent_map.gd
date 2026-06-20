@@ -18,6 +18,9 @@ var _focus_target: Button = null  # furthest-unlocked level button — gets focu
 
 
 func _ready() -> void:
+	# Start parsing the play scene off-thread while the player reads the descent, so picking
+	# a level is an instant in-memory swap rather than a synchronous load (see GameState).
+	GameState.preload_play_scene()
 	_build_column()
 	back_button.pressed.connect(GameState.go_to_main_menu)
 	# Land on the next level to play (the furthest unlocked) and scroll it into view, so a

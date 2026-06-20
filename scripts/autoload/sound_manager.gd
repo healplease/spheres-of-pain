@@ -23,6 +23,10 @@ const POPS: Array[AudioStream] = [
 # field is one/two rows from the lose line; see set_heartbeat_* below.
 const HEARTBEAT_SLOW := preload("res://audio/sfx/heartbeat1.ogg")  # 2 rows from losing
 const HEARTBEAT_FAST := preload("res://audio/sfx/heartbeat2.ogg")  # 1 row from losing
+# A sub-bass drone that swells on a big "catastrophe" clear and tails out (E2.4 crescendo),
+# and the deep dissonant defeat sting (E2.7), played after a beat of dead air on a loss.
+const BIG_CLEAR_DRONE := preload("res://audio/sfx/big_clear_drone.ogg")
+const LOSE_STING := preload("res://audio/sfx/lose_sting.ogg")
 
 # Volume dials (dB). Tune to taste; buses give a second, global layer of control.
 const AMBIENCE_DB := -10.0
@@ -32,10 +36,16 @@ const HOVER_DB := -18.0
 const INTRO_DB := 0.0
 const HEARTBEAT_DB := -4.0  # the heartbeats' "100%" target
 const SILENT_DB := -60.0  # effective silence (never linear_to_db(0) = -inf)
+const DRONE_DB := 0.0  # the crescendo drone at a full-magnitude clear
+const DRONE_DB_FLOOR := -19.0  # ...and at the smallest clear that still triggers it
+const LOSE_STING_DB := -3.0  # the defeat sting
 
 # Gap between the individual pops of a cluster burst (seconds), so a big clear
 # reads as a few deliberate, sequenced pops instead of one mushy overlap.
 const POP_SEQUENCE_GAP := 0.09
+# Each successive pop of a cluster drops this many semitones (E2.4): the inverse of the
+# cheerful ascending arcade combo — a big chain drags *downward* into dread, not up.
+const POP_DESCENT_SEMITONES := 1.0
 # How long a heartbeat takes to grow 0 -> 100% (and to fade back out), per spec.
 const HEARTBEAT_FADE := 1.0
 
@@ -48,6 +58,8 @@ var _hb_slow: AudioStreamPlayer
 var _hb_fast: AudioStreamPlayer
 var _hb_slow_tween: Tween
 var _hb_fast_tween: Tween
+var _drone: AudioStreamPlayer
+var _lose: AudioStreamPlayer
 
 
 func _ready() -> void:
@@ -87,21 +99,48 @@ func _ready() -> void:
 	_pops = _make_player(&"Gameplay", POP_DB, 12)
 	_pops.stream = rand
 
+	# Big-clear crescendo drone + defeat sting (both gameplay outcomes, on the Gameplay bus).
+	_drone = _make_player(&"Gameplay", DRONE_DB, 1)
+	_drone.stream = BIG_CLEAR_DRONE
+	_lose = _make_player(&"Gameplay", LOSE_STING_DB, 1)
+	_lose.stream = LOSE_STING
+
 	get_tree().node_added.connect(_on_node_added)
 
 
 func play_pop() -> void:
-	_pops.play()
+	_play_pop_step(0)  # a lone pop plays at its natural pitch
 
 
 ## Play a burst of pops sized to how many spheres just cleared, so a large cluster
 ## fires a handful of deliberate pops rather than one sound per bubble (which turns
-## to noise on big clears). Buckets: 3-5 -> 1, 6-9 -> 2, 10-15 -> 3, 16+ -> 4.
+## to noise on big clears). Buckets: 3-5 -> 1, 6-9 -> 2, 10-15 -> 3, 16+ -> 4. Each
+## successive pop steps a semitone DOWN, so a big chain sinks instead of sparkling.
 func play_cluster_pop(cluster_size: int) -> void:
 	var count := _pop_count_for(cluster_size)
-	play_pop()
+	_play_pop_step(0)
 	for i in range(1, count):
-		get_tree().create_timer(i * POP_SEQUENCE_GAP).timeout.connect(play_pop)
+		get_tree().create_timer(i * POP_SEQUENCE_GAP).timeout.connect(_play_pop_step.bind(i))
+
+
+## Fire one pop transposed `step` semitones down from its natural pitch. The randomizer
+## still jitters pitch/volume around this, so the descent reads as a trend, not a ramp.
+func _play_pop_step(step: int) -> void:
+	_pops.pitch_scale = pow(2.0, -step * POP_DESCENT_SEMITONES / 12.0)
+	_pops.play()
+
+
+## A big clear swells a sub-bass drone, louder the bigger the clear, then it tails out on its
+## own (E2.4). `intensity` is 0..1 (the clear's magnitude). Restarts if one's still ringing.
+func play_drone(intensity: float) -> void:
+	_drone.volume_db = lerpf(DRONE_DB_FLOOR, DRONE_DB, clampf(intensity, 0.0, 1.0))
+	_drone.play()
+
+
+## The defeat sting — a deep dissonant hit. The caller leaves a beat of dead air first, so the
+## silence (heartbeats already hard-stopped) makes it land (E2.7).
+func play_lose_sting() -> void:
+	_lose.play()
 
 
 func _pop_count_for(n: int) -> int:

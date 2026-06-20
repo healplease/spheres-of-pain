@@ -52,6 +52,11 @@ var intro_played: bool = false
 ## Cached region resources (lazy — built on first regions() call so a broken region file
 ## degrades to "no grouping", not a boot crash).
 var _regions: Array[RegionResource] = []
+## True once a background threaded load of the play scene has been requested (and not yet
+## consumed). Launch screens kick this off in their _ready so the (heavy-to-parse) play scene
+## loads off the main thread while the player reads the menu; entering play then swaps to the
+## ready PackedScene with no synchronous file load. Reset when the scene is taken.
+var _play_scene_requested: bool = false
 
 
 static func level_path(i: int) -> String:
@@ -105,6 +110,44 @@ func load_validated(path: String, label: String) -> LevelResource:
 	return lv
 
 
+# --- play scene loading -------------------------------------------------------
+
+
+## Begin loading the play scene off the main thread. Called from the launch screens'
+## _ready (descent map, my levels, editor) so the scene parses while the player is still
+## choosing — by the time they pick a level it's usually ready, and entering play is an
+## instant in-memory swap instead of a synchronous file parse. Idempotent: a second call
+## while a request is still outstanding is a no-op (the request is consumed on entry).
+func preload_play_scene() -> void:
+	if _play_scene_requested:
+		return
+	# use_sub_threads=true lets the worker pool parse sub-resources in parallel.
+	if ResourceLoader.load_threaded_request(PLAY_SCENE, "", true) == OK:
+		_play_scene_requested = true
+
+
+## The preloaded play scene if the background load has finished, else null (caller then
+## falls back to change_scene_to_file, which is still cache-warmed by the in-flight load).
+## Only consumes the request once the load is fully done, so it never blocks.
+func _take_play_scene() -> PackedScene:
+	if not _play_scene_requested:
+		return null
+	if ResourceLoader.load_threaded_get_status(PLAY_SCENE) != ResourceLoader.THREAD_LOAD_LOADED:
+		return null
+	_play_scene_requested = false
+	return ResourceLoader.load_threaded_get(PLAY_SCENE) as PackedScene
+
+
+## Switch to the play scene, preferring the off-thread preloaded copy (instant) and
+## falling back to a synchronous file load if it isn't ready yet.
+func _enter_play_scene() -> void:
+	var ps := _take_play_scene()
+	if ps != null:
+		get_tree().change_scene_to_packed(ps)
+	else:
+		get_tree().change_scene_to_file(PLAY_SCENE)
+
+
 func start_level(i: int) -> void:
 	var lv := load_level(i)
 	if lv == null:
@@ -113,7 +156,7 @@ func start_level(i: int) -> void:
 	selected_level = lv
 	return_scene = LEVEL_SELECT_SCENE
 	Log.info(Log.FLOW, "enter level", {"index": i, "title": lv.title})
-	get_tree().change_scene_to_file(PLAY_SCENE)
+	_enter_play_scene()
 
 
 ## Replay the level currently loaded. Authored levels reload by index (re-validating
@@ -125,7 +168,7 @@ func retry_level() -> void:
 		start_level(selected_index)
 	elif selected_level != null:
 		Log.info(Log.FLOW, "retry", {"title": selected_level.title})
-		get_tree().change_scene_to_file(PLAY_SCENE)
+		_enter_play_scene()
 
 
 func has_next() -> bool:
@@ -204,7 +247,7 @@ func play_draft(level: LevelResource) -> void:
 	editor_draft = level
 	return_scene = EDITOR_SCENE
 	Log.info(Log.FLOW, "enter level", {"mode": "draft", "title": level.title})
-	get_tree().change_scene_to_file(PLAY_SCENE)
+	_enter_play_scene()
 
 
 ## Play a saved user level (free play — always unlocked, no progress); exiting returns
@@ -217,7 +260,7 @@ func play_user_level(path: String) -> void:
 	selected_level = lv
 	return_scene = MY_LEVELS_SCENE
 	Log.info(Log.FLOW, "enter level", {"mode": "user", "title": lv.title, "path": path})
-	get_tree().change_scene_to_file(PLAY_SCENE)
+	_enter_play_scene()
 
 
 func go_to_my_levels() -> void:

@@ -26,6 +26,9 @@ var _confirm: ConfirmationDialog
 
 
 func _ready() -> void:
+	# Preload the play scene off-thread while the list is browsed, so launching a level is
+	# an instant in-memory swap (see GameState.preload_play_scene).
+	GameState.preload_play_scene()
 	prev_button.pressed.connect(_change_page.bind(-1))
 	next_button.pressed.connect(_change_page.bind(1))
 	create_button.pressed.connect(GameState.go_to_create_level)

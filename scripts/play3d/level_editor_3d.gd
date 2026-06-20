@@ -108,6 +108,8 @@ func to2d(w: Vector3) -> Vector2:
 
 func _ready() -> void:
 	_s = 1.0 / diameter
+	# Preload the play scene off-thread so a playtest (play_draft) swaps in instantly.
+	GameState.preload_play_scene()
 	_build_visual_assets()
 
 	_stage_view = StageView.new()

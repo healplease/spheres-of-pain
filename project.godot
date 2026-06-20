@@ -82,3 +82,7 @@ text_aberration={
 "type": "float",
 "value": 1.0
 }
+fx_intensity={
+"type": "float",
+"value": 1.0
+}

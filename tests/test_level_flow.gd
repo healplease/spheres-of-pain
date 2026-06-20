@@ -49,6 +49,16 @@ func _count_value(model: GridModel, value: int) -> int:
 	return n
 
 
+## The play scene builds its board VIEW asynchronously behind a loading veil (chunked spawn
+## over a few process frames), so a fixed wait races it. Poll until every model cell has a
+## live sphere (or a generous frame cap), then callers can assert on board._spheres.
+func _await_board_built(scene: LevelController3D) -> void:
+	var guard := 0
+	while scene.board._spheres.size() < scene.model.cells.size() and guard < 300:
+		await wait_frames(1)
+		guard += 1
+
+
 func test_special_levels_build_without_error() -> void:
 	# Spawning the play scene runs the full controller: it builds the _specials map and
 	# assigns the swirl/pulse materials to every spin/bounce sphere via board._build_all.
@@ -59,7 +69,7 @@ func test_special_levels_build_without_error() -> void:
 		{"idx": 15, "spin": 2, "bounce": 2, "colored": 68},
 	]:
 		var scene := _spawn_level(spec.idx)
-		await wait_physics_frames(2)
+		await _await_board_built(scene)
 		assert_eq(
 			_count_value(scene.model, GridModel.SPIN), spec.spin, "level %d spin count" % spec.idx
 		)
