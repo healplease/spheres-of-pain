@@ -180,6 +180,25 @@ func test_max_row_counts_specials() -> void:
 # --- spin rotation ------------------------------------------------------------
 
 
+func _colour_multiset(m: GridModel) -> Array:
+	# Sorted list of every breakable colour on the board, for order-independent compare.
+	var out: Array = []
+	for c in m.cells.values():
+		if c >= 0:
+			out.append(c)
+	out.sort()
+	return out
+
+
+func _ring_contents(m: GridModel, spin: Vector2i, dirs: Array) -> Array:
+	# Sorted contents (colour, or EMPTY for a gap) of the spin's six neighbour cells.
+	var out: Array = []
+	for d in dirs:
+		out.append(m.cells.get(spin + d, GridModel.EMPTY))
+	out.sort()
+	return out
+
+
 func test_spin_rotates_neighbours_counter_clockwise() -> void:
 	var m := _make_model()
 	m.num_colors = 6
@@ -190,18 +209,26 @@ func test_spin_rotates_neighbours_counter_clockwise() -> void:
 	m.cells[spin] = GridModel.SPIN
 	for i in range(6):
 		m.cells[spin + dirs[i]] = cols[i]
-	var changed := m.spin_step()
-	# Each neighbour receives the colour of the previous (clockwise) slot: the colour
-	# at slot i moves forward to slot i+1, i.e. one step counter-clockwise on screen.
+	var moves := m.spin_step()
+	# Each neighbour receives the colour of the previous slot: the sphere at slot i
+	# physically moves forward to slot i+1, i.e. one step counter-clockwise on screen.
 	for i in range(6):
 		var expected: int = cols[(i - 1 + 6) % 6]
 		assert_eq(m.cells[spin + dirs[i]], expected, "slot %d rotated CCW" % i)
 	assert_eq(m.cells[spin], GridModel.SPIN, "the spin sphere itself is unchanged")
-	assert_eq(changed.size(), 6, "all six neighbours reported as changed")
+	# A clean permutation: six spheres, each leaving once and landing once.
+	assert_eq(moves.size(), 6, "all six spheres relocate")
+	var froms := {}
+	var tos := {}
+	for mv in moves:
+		froms[mv["from"]] = true
+		tos[mv["to"]] = true
+	assert_eq(froms.size(), 6, "each source cell appears once")
+	assert_eq(tos.size(), 6, "each destination cell appears once")
 
 
 func test_spin_parity_consistent() -> void:
-	# The same physical move (East colour travels to the up-right neighbour) must hold
+	# The same physical move (East content travels to the up-right neighbour) must hold
 	# whether the spin sits on an even or an odd row.
 	for spin in [Vector2i(2, 2), Vector2i(2, 3)]:
 		var m := _make_model()
@@ -215,28 +242,148 @@ func test_spin_parity_consistent() -> void:
 		assert_eq(m.cells[spin + dirs[1]], 0, "East colour moved to up-right (spin at %s)" % spin)
 
 
+func test_spin_full_ring_matches_old_ccw() -> void:
+	# Direction regression: a fully-occupied ring rotates exactly as the legacy colour
+	# swap did — content at slot i lands on slot i+1 (counter-clockwise). Odd row also
+	# guards parity.
+	var m := _make_model()
+	m.num_colors = 6
+	var spin := Vector2i(2, 3)  # odd row
+	var dirs: Array = Hex.DIRS[1]
+	for i in range(6):
+		m.cells[spin + dirs[i]] = i
+	m.cells[spin] = GridModel.SPIN
+	m.spin_step()
+	for i in range(6):
+		var prev: int = (i - 1 + 6) % 6
+		assert_eq(m.cells[spin + dirs[i]], prev, "slot %d holds the previous slot's colour" % i)
+
+
 func test_spin_only_rotates_coloured_neighbours() -> void:
+	# Empty in-bounds neighbours are now track cells too, so they take part. With a black
+	# neighbour excluded, the ring is [E, up-left, W, down-left, down-right] and the
+	# contents (two colours + three gaps) rotate one slot anti-clockwise.
 	var m := _make_model()
 	var spin := Vector2i(2, 2)
 	var dirs: Array = Hex.DIRS[0]
 	m.cells[spin] = GridModel.SPIN
 	m.cells[spin + dirs[0]] = 1  # E: colour
-	m.cells[spin + dirs[1]] = GridModel.BLACK  # up-right: indestructible, skipped
+	m.cells[spin + dirs[1]] = GridModel.BLACK  # up-right: indestructible, excluded
 	m.cells[spin + dirs[3]] = 2  # W: colour
-	m.spin_step()
-	# Only the two coloured neighbours form the ring; they swap (a 2-cycle).
-	assert_eq(m.cells[spin + dirs[0]], 2, "E took W's colour")
-	assert_eq(m.cells[spin + dirs[3]], 1, "W took E's colour")
+	var moves := m.spin_step()
 	assert_eq(m.cells[spin + dirs[1]], GridModel.BLACK, "black neighbour untouched")
+	# E's colour jumps over the black to up-left; W's colour moves to down-left.
+	assert_eq(m.cells.get(spin + dirs[2], GridModel.EMPTY), 1, "E colour travelled to up-left")
+	assert_eq(m.cells.get(spin + dirs[4], GridModel.EMPTY), 2, "W colour travelled to down-left")
+	# The source cells are now vacated (an empty slot rotated into them).
+	assert_false(m.cells.has(spin + dirs[0]), "E source vacated")
+	assert_false(m.cells.has(spin + dirs[3]), "W source vacated")
+	assert_eq(moves.size(), 2, "two spheres relocated; the gaps moved no sphere")
 
 
-func test_spin_noop_with_one_coloured_neighbour() -> void:
+func test_spin_single_bubble_moves_one_slot() -> void:
+	# A lone sphere is no longer a no-op: the surrounding empty slots are track cells, so
+	# the sphere travels one slot anti-clockwise (E -> up-right) and vacates its cell.
 	var m := _make_model()
 	var spin := Vector2i(2, 2)
-	m.cells = {spin: GridModel.SPIN, spin + Hex.DIRS[0][0]: 3}
-	var changed := m.spin_step()
-	assert_true(changed.is_empty(), "a single coloured neighbour has nothing to rotate")
-	assert_eq(m.cells[spin + Hex.DIRS[0][0]], 3, "lone neighbour colour unchanged")
+	var dirs: Array = Hex.DIRS[0]
+	m.cells = {spin: GridModel.SPIN, spin + dirs[0]: 3}
+	var moves := m.spin_step()
+	assert_false(m.cells.has(spin + dirs[0]), "the sphere left its source cell")
+	assert_eq(m.cells.get(spin + dirs[1], GridModel.EMPTY), 3, "the sphere arrived up-right")
+	assert_eq(moves.size(), 1, "exactly one sphere moved")
+	assert_eq(moves[0]["from"], spin + dirs[0])
+	assert_eq(moves[0]["to"], spin + dirs[1])
+	assert_eq(moves[0]["color"], 3)
+
+
+func test_spin_empty_travels_into_occupied() -> void:
+	# A sphere rotates into a slot that was empty — the empty slot is a valid track cell.
+	var m := _make_model()
+	var spin := Vector2i(2, 2)
+	var dirs: Array = Hex.DIRS[0]
+	m.cells[spin] = GridModel.SPIN
+	m.cells[spin + dirs[0]] = 1  # E occupied; up-right (dirs[1]) is empty
+	m.spin_step()
+	assert_eq(
+		m.cells.get(spin + dirs[1], GridModel.EMPTY), 1, "sphere travelled into the empty slot"
+	)
+	assert_false(m.cells.has(spin + dirs[0]), "its source cell is now empty")
+
+
+func test_spin_empty_replaces_bubble() -> void:
+	# The dual: a lone empty slot travels anti-clockwise and vacates an occupied cell.
+	var m := _make_model()
+	var spin := Vector2i(2, 2)
+	var dirs: Array = Hex.DIRS[0]
+	m.cells[spin] = GridModel.SPIN
+	# Occupy every neighbour except up-right (dirs[1]); that one gap rotates forward.
+	for i in range(6):
+		if i != 1:
+			m.cells[spin + dirs[i]] = i
+	m.spin_step()
+	# The gap moves one slot forward (slot 1 -> slot 2), so the up-left cell, which
+	# started occupied, is now vacated.
+	assert_false(m.cells.has(spin + dirs[2]), "the gap rotated into up-left, vacating it")
+	assert_eq(m.cells.get(spin + dirs[1], GridModel.EMPTY), 0, "up-right took East's colour")
+
+
+func test_spin_permutation_conserves_multiset() -> void:
+	# A ring of mixed colours and gaps: the sorted multiset of contents (colours AND
+	# gaps) is unchanged — rotation only permutes them.
+	var m := _make_model()
+	m.num_colors = 6
+	var spin := Vector2i(2, 2)
+	var dirs: Array = Hex.DIRS[0]
+	m.cells[spin] = GridModel.SPIN
+	m.cells[spin + dirs[0]] = 0
+	m.cells[spin + dirs[1]] = 4
+	m.cells[spin + dirs[3]] = 2
+	m.cells[spin + dirs[5]] = 2
+	# dirs[2] and dirs[4] left empty.
+	var before := _ring_contents(m, spin, dirs)
+	m.spin_step()
+	var after := _ring_contents(m, spin, dirs)
+	assert_eq(after, before, "colours and gaps are both conserved by the rotation")
+
+
+func test_spin_skips_indestructible_neighbour_jump_over() -> void:
+	# A black neighbour is excluded from the ring, so a sphere jumps over it to the next
+	# track slot, and the black sphere itself never moves.
+	var m := _make_model()
+	var spin := Vector2i(2, 2)
+	var dirs: Array = Hex.DIRS[0]
+	m.cells[spin] = GridModel.SPIN
+	m.cells[spin + dirs[0]] = 1  # E: colour
+	m.cells[spin + dirs[1]] = GridModel.BLACK  # up-right: excluded
+	var moves := m.spin_step()
+	assert_eq(m.cells[spin + dirs[1]], GridModel.BLACK, "black neighbour stayed put")
+	assert_false(m.cells.has(spin + dirs[0]), "sphere left East")
+	assert_eq(m.cells.get(spin + dirs[2], GridModel.EMPTY), 1, "sphere jumped the black to up-left")
+	assert_eq(moves.size(), 1)
+	assert_eq(moves[0]["from"], spin + dirs[0])
+	assert_eq(moves[0]["to"], spin + dirs[2])
+
+
+func test_spin_excludes_out_of_bounds() -> void:
+	# A spin against the left wall only rotates its in-bounds neighbours; no out-of-bounds
+	# cell is ever written.
+	var m := _make_model()
+	var spin := Vector2i(0, 2)  # column 0 — three of its six neighbours are off-grid
+	var dirs: Array = Hex.DIRS[0]
+	m.cells[spin] = GridModel.SPIN
+	m.cells[spin + dirs[0]] = 1  # E  (1,2)
+	m.cells[spin + dirs[1]] = 2  # up-right (0,1)
+	m.cells[spin + dirs[5]] = 3  # down-right (0,3)
+	var moves := m.spin_step()
+	# Three-cell ring rotates one CCW: E<-DR, UR<-E, DR<-UR.
+	assert_eq(m.cells[spin + dirs[0]], 3, "E took down-right's colour")
+	assert_eq(m.cells[spin + dirs[1]], 1, "up-right took E's colour")
+	assert_eq(m.cells[spin + dirs[5]], 2, "down-right took up-right's colour")
+	assert_eq(moves.size(), 3, "only the three in-bounds spheres moved")
+	assert_false(m.cells.has(spin + dirs[2]), "no sphere written up-left (off-grid)")
+	assert_false(m.cells.has(spin + dirs[3]), "no sphere written west (off-grid)")
+	assert_false(m.cells.has(spin + dirs[4]), "no sphere written down-left (off-grid)")
 
 
 func test_spin_preserves_colour_count() -> void:
@@ -247,8 +394,59 @@ func test_spin_preserves_colour_count() -> void:
 		m.cells[spin + Hex.DIRS[0][i]] = i % 4
 	m.cells[spin] = GridModel.SPIN
 	var before := m.count_colored()
+	var before_multiset := _colour_multiset(m)
 	m.spin_step()
 	assert_eq(m.count_colored(), before, "spin only moves colours, never adds or removes")
+	assert_eq(_colour_multiset(m), before_multiset, "the multiset of colours is conserved")
+
+
+func test_spin_returns_moves_list() -> void:
+	# The return value is a list of {from, to, color}; each from and to is unique, and
+	# replaying the moves reproduces the resolved board.
+	var m := _make_model()
+	m.num_colors = 6
+	var spin := Vector2i(2, 2)
+	var dirs: Array = Hex.DIRS[0]
+	for i in range(6):
+		m.cells[spin + dirs[i]] = i
+	m.cells[spin] = GridModel.SPIN
+	var moves := m.spin_step()
+	assert_eq(moves.size(), 6)
+	var froms := {}
+	var tos := {}
+	var rebuilt := {spin: GridModel.SPIN}
+	for mv in moves:
+		assert_true(mv.has("from") and mv.has("to") and mv.has("color"), "move shape")
+		froms[mv["from"]] = true
+		tos[mv["to"]] = true
+		rebuilt[mv["to"]] = mv["color"]
+	assert_eq(froms.size(), 6, "every source unique")
+	assert_eq(tos.size(), 6, "every destination unique")
+	assert_eq(rebuilt, m.cells, "replaying the moves reproduces the board")
+
+
+func test_spin_all_empty_ring_is_noop() -> void:
+	var m := _make_model()
+	var spin := Vector2i(2, 2)
+	m.cells = {spin: GridModel.SPIN}
+	var moves := m.spin_step()
+	assert_true(moves.is_empty(), "no spheres to move")
+	assert_eq(m.cells.size(), 1, "only the spin sphere remains; no empty was materialised")
+
+
+func test_spin_ring_size_one_is_noop() -> void:
+	# With only a single track cell (others off-grid or indestructible) there is nothing
+	# to rotate against, so the spin does nothing.
+	var m := _make_model()
+	var spin := Vector2i(0, 0)  # top-left corner: four neighbours are off-grid
+	var dirs: Array = Hex.DIRS[0]
+	m.cells[spin] = GridModel.SPIN
+	m.cells[spin + dirs[0]] = 1  # E: the lone in-bounds breakable neighbour
+	m.cells[spin + dirs[5]] = GridModel.BLACK  # down-right: in-bounds but excluded
+	var moves := m.spin_step()
+	assert_true(moves.is_empty(), "a one-cell ring cannot rotate")
+	assert_eq(m.cells[spin + dirs[0]], 1, "the lone neighbour is unchanged")
+	assert_eq(m.cells[spin + dirs[5]], GridModel.BLACK, "the black neighbour is unchanged")
 
 
 func _spin_conflict_board() -> GridModel:
@@ -277,6 +475,21 @@ func test_spin_multi_is_deterministic() -> void:
 		assert_eq(
 			b.cells.get(k, -999), a.cells[k], "shared-neighbour spin is deterministic at %s" % k
 		)
+
+
+func test_spin_multi_overlap_cascades() -> void:
+	# The two spins share neighbours. They resolve one at a time in reading order — (2,2)
+	# first, then (4,2) on the board (2,2) left behind — so BOTH take effect; neither is
+	# skipped (the old behaviour dropped the second spin).
+	var m := _spin_conflict_board()
+	m.spin_step()
+	# (2,2) acted first: its up-right took the shared cell's colour.
+	assert_eq(m.cells[Vector2i(2, 1)], 0, "(2,2) rotated — up-right took the shared colour")
+	# (4,2) then acted on the result: its own exclusive neighbours changed too.
+	assert_eq(m.cells[Vector2i(5, 2)], 5, "(4,2) east changed — the second spin triggered")
+	assert_eq(m.cells[Vector2i(4, 1)], 3, "(4,2) up-right changed — the second spin triggered")
+	assert_eq(m.cells.get(Vector2i(3, 1), GridModel.EMPTY), 4, "(4,2) filled its up-left slot")
+	assert_false(m.cells.has(Vector2i(4, 3)), "(4,2) vacated its down-right slot")
 
 
 # --- growth -------------------------------------------------------------------

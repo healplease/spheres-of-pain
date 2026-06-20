@@ -24,6 +24,11 @@ const BLACK := -1
 const SPIN := -2
 const BOUNCE := -3
 
+## Sentinel for a vacant track slot during a spin rotation. Outside every real cell
+## value (breakable >= 0, specials -1/-2/-3) so it can stand in for "empty" while the
+## ring is permuted. NEVER stored in `cells` — spin_step() erases a cell instead.
+const EMPTY := -100
+
 var cells: Dictionary = {}  # Vector2i -> int
 var width: int = 11  # columns [0, width)
 var num_colors: int = 5
@@ -180,45 +185,78 @@ func randomize_colors() -> void:
 			cells[cell] = rng.randi_range(0, num_colors - 1)
 
 
-## After a shot lands, every SPIN sphere rotates the COLOURS of its occupied
-## breakable neighbours one step counter-clockwise (the colours cycle; the spheres
-## stay put). Read from a pre-rotation snapshot so multiple spins resolve
-## simultaneously and deterministically: spins are visited in a fixed (sorted) order
-## and the first to claim a shared neighbour wins. Returns the cells whose colour
-## changed, so the view can recolour just those on its next sync().
+## After a shot lands, every SPIN sphere rotates the CONTENTS of its neighbouring
+## "track" cells one step counter-clockwise — and the spheres physically MOVE, they
+## no longer just swap colours in place. Empty slots take part too, so a sphere can
+## travel into an empty slot or an empty slot can travel round and vacate a sphere's
+## cell. Returns a moves list ({from, to, color}) — one per breakable sphere that ends
+## up somewhere new — so the view can animate the travel; empty slots produce no move
+## but are still vacated/filled by the rotation.
+##
+## A track cell is an in-bounds, non-indestructible neighbour (breakable OR empty);
+## indestructible neighbours and out-of-bounds positions are excluded and the ring
+## compacts over them (a sphere may "jump" the gap to the next track slot).
+##
+## Spins resolve ONE AT A TIME in reading order (top-to-bottom, then left-to-right),
+## each acting on the board the previous spins left behind — so two nearby spins both
+## take effect (the later one rotates the cells the earlier one already moved) instead
+## of one cancelling the other. A spin's own ring is read in full before it writes, so
+## a single rotation stays simultaneous within itself. Each sphere is tracked from its
+## starting cell to its final cell, and the returned moves are those net hops — always
+## a clean permutation (each origin once, each destination once), so the view can
+## re-key its nodes safely even when a sphere is carried through two rotations.
 ##
 ## Hex.DIRS[parity] is authored so the same index is the same compass direction for
 ## both row parities, walking E -> up-right -> up-left -> W -> down-left -> down-right
 ## — counter-clockwise on screen. Reading the ring in DIRS order and shifting each
-## colour to the previous slot (i-1) is therefore a CCW rotation.
-func spin_step() -> Array[Vector2i]:
-	var snapshot := cells.duplicate()
+## slot's content to the next slot (i -> i+1) is therefore a CCW rotation.
+func spin_step() -> Array[Dictionary]:
 	var spins: Array[Vector2i] = []
 	for cell in cells:
 		if cells[cell] == SPIN:
 			spins.append(cell)
-	spins.sort()  # deterministic visit order for shared-neighbour conflicts
-	var writes := {}  # Vector2i -> new colour
+	# Reading order: top-to-bottom (row), then left-to-right (column) — deterministic,
+	# and the natural order a player scans the board.
+	spins.sort_custom(
+		func(a: Vector2i, b: Vector2i) -> bool: return a.y < b.y or (a.y == b.y and a.x < b.x)
+	)
+	# origin[current cell] = the cell the sphere now there started in, so after several
+	# overlapping rotations we can emit one net hop per sphere. Only touched cells appear.
+	var origin := {}
 	for spin in spins:
 		var ring: Array[Vector2i] = []
-		var cols: Array[int] = []
+		var contents: Array[int] = []
+		var origins: Array = []  # parallel to ring; the origin of each slot's sphere, or null
 		for delta in Hex.DIRS[spin.y & 1]:
 			var nb: Vector2i = spin + delta
-			if snapshot.get(nb, -999) >= 0:
-				ring.append(nb)
-				cols.append(snapshot[nb])
-		if ring.size() < 2:
-			continue  # 0 or 1 coloured neighbours -> rotation is a no-op
-		for i in range(ring.size()):
-			if writes.has(ring[i]):
-				continue  # already claimed by an earlier spin
-			writes[ring[i]] = cols[(i - 1 + cols.size()) % cols.size()]
-	var changed: Array[Vector2i] = []
-	for c in writes:
-		if cells.get(c, -999) != writes[c]:
-			cells[c] = writes[c]
-			changed.append(c)
-	return changed
+			if nb.x < 0 or nb.x >= width or nb.y < 0:
+				continue  # out of bounds (walls) -> excluded; ring compacts over it
+			var occupied := cells.has(nb)
+			if occupied and cells[nb] < 0:
+				continue  # indestructible -> excluded; ring compacts over it
+			ring.append(nb)
+			contents.append(cells[nb] if occupied else EMPTY)
+			origins.append(origin.get(nb, nb) if occupied else null)
+		var n := ring.size()
+		if n < 2:
+			continue  # 0 or 1 track cell -> rotation is a no-op
+		# Rotate contents (and the origins riding with them) one slot CCW: slot i's
+		# content moves to slot i+1. Read above is complete, so writing here is safe.
+		for i in range(n):
+			var dest: Vector2i = ring[i]
+			var src := (i - 1 + n) % n
+			if contents[src] == EMPTY:
+				cells.erase(dest)
+				origin.erase(dest)
+			else:
+				cells[dest] = contents[src]
+				origin[dest] = origins[src]
+	var moves: Array[Dictionary] = []
+	for cur in origin:
+		var org: Vector2i = origin[cur]
+		if org != cur:
+			moves.append({"from": org, "to": cur, "color": cells[cur]})
+	return moves
 
 
 ## Procedurally fill a fresh free-play board: every cell in the first `rows` rows

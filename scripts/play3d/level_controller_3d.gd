@@ -567,6 +567,10 @@ func _on_fired(reaim := true) -> void:
 	shooter.reload(_rand_color())
 
 
+## Coroutine: the post-shot field animations play in sequence — cluster pop / field
+## grow first, then the spin rotation — and the gun stays locked (shooter.enabled was
+## set false at fire time) until the board has fully settled, so the player can't fire
+## into a still-animating field.
 func _on_landed(cell: Vector2i, color: int) -> void:
 	var res := model.attach(cell, color)
 	if res.did_pop:
@@ -578,16 +582,28 @@ func _on_landed(cell: Vector2i, color: int) -> void:
 		_narrate_clear(res.popped.size(), res.orphaned.size())
 	else:
 		model.grow()
-	# Spin spheres react to the just-landed shot, cycling their neighbours' colours.
-	# Run it on the final post-pop/grow board, before sync() reflects the changes and
-	# before the win/lose verdict is read. sync() recolours the changed cells for free.
-	model.spin_step()
 	# On a pop, ripple the clear outward from the impact cell; on a dud the grown
 	# spheres just animate in (no removals, so pop_origin is irrelevant).
 	var settle := board.sync([cell], cell)  # the landed sphere appears full-size
+	# Let the pop/grow finish before the spin reacts — the phases read sequentially.
+	if settle > 0.0:
+		await get_tree().create_timer(settle).timeout
+		if not is_inside_tree() or game_over:
+			return
+	# Spin spheres now react to the settled board, physically rotating their breakable
+	# neighbours one slot anti-clockwise. spin_step() brings the model to its final
+	# state and returns the moves; animate_spin() relocates the existing nodes.
+	var moves := model.spin_step()
+	var spin_settle := board.animate_spin(moves)
+	if spin_settle > 0.0:
+		Log.debug(Log.PLAY, "spin", {"moves": moves.size(), "settle": spin_settle})
+		await get_tree().create_timer(spin_settle).timeout
+		if not is_inside_tree() or game_over:
+			return
 	_validate_load()
 	# Board is now in its final post-resolution state; scan it once and share the
 	# counts with the log, the HUD, and the heartbeat instead of rescanning thrice.
+	# Read AFTER the spin — it can move a sphere into a deeper row.
 	var colored := model.count_colored()
 	var deepest := model.max_row()
 	(
@@ -601,6 +617,7 @@ func _on_landed(cell: Vector2i, color: int) -> void:
 				"pop": res.did_pop,
 				"popped": res.popped.size(),
 				"orphaned": res.orphaned.size(),
+				"spin_moves": moves.size(),
 				"colored": colored,
 				"max_row": deepest,
 			}
@@ -610,10 +627,11 @@ func _on_landed(cell: Vector2i, color: int) -> void:
 	# a grow may have closed on the line; a pop may have backed off it
 	_update_heartbeat(model.danger_row - deepest)
 	_narrate_danger(model.danger_row - deepest)
-	# Hold the verdict until the board has visually settled — the win banner must
-	# not appear while the last cluster is still popping.
+	# Hold the verdict a beat so the final state reads before the banner. Pop/grow and
+	# spin have already settled above; the spin can push a sphere across the line, so
+	# the verdict is read here, after it.
 	if model.is_won() or model.is_lost():
-		await get_tree().create_timer(settle + 0.25).timeout
+		await get_tree().create_timer(0.25).timeout
 		if not is_inside_tree() or game_over:
 			return
 		_check_end()

@@ -31,6 +31,12 @@ const POP_TIME := 0.20  # expand-and-fade duration for cleared spheres
 const POP_SCALE := 1.3  # how far a dying sphere swells before vanishing
 const POP_STAGGER := 0.1  # extra delay per unit of hex distance from the pop origin
 
+# Spin rotation: spheres shrink, slide one slot anti-clockwise, then grow back.
+const SPIN_SHRINK_TIME := 0.10  # contract before the slide
+const SPIN_MOVE_TIME := 0.15  # glide to the next anti-clockwise cell
+const SPIN_GROW_TIME := 0.10  # settle back to full size
+const SPIN_SHRINK_SCALE := 0.8  # how small a sphere pulls in while travelling
+
 var model: GridModel
 var diameter := 56.0
 var _s := 1.0 / 56.0  # metres per logical pixel = 1/diameter; set in setup()
@@ -102,6 +108,55 @@ func sync(instant_cells: Array = [], pop_origin = null) -> float:
 		_pop(cell, delay)
 		settle = maxf(settle, delay + POP_TIME)
 	return settle
+
+
+## Physically animate a spin rotation: each move relocates the existing sphere node
+## from its `from` cell to its `to` cell (no recolour — the colour travels with the
+## node). The moves form a permutation of the participating cells, so the spheres are
+## re-keyed in two passes (erase every source key, then insert every destination key)
+## before animating — a single in-place pass would clobber a node whose destination is
+## another move's source. Each node then runs a shrink -> slide -> grow tween. Returns
+## the settle time (seconds) so the controller can hold firing until the field rests.
+func animate_spin(moves: Array) -> float:
+	if moves.is_empty():
+		return 0.0
+	# Pass 1: snapshot the live nodes by their source cell before touching _spheres.
+	var hops: Array = []  # [{node: MeshInstance3D, to: Vector2i}]
+	for move in moves:
+		var from: Vector2i = move["from"]
+		if not _spheres.has(from):
+			continue  # defensive: model/view drift — skip rather than crash
+		hops.append({"node": _spheres[from], "to": move["to"]})
+	if hops.is_empty():
+		return 0.0
+	# Pass 2: re-key. Erase all sources first, then place every node at its destination.
+	for move in moves:
+		_spheres.erase(move["from"])
+	for hop in hops:
+		_spheres[hop["to"]] = hop["node"]
+	# Pass 3: shrink -> slide -> grow on each node (independent tweens, same frame).
+	for hop in hops:
+		var mi: MeshInstance3D = hop["node"]
+		var tw := mi.create_tween()
+		(
+			tw
+			. tween_property(mi, "scale", Vector3.ONE * SPIN_SHRINK_SCALE, SPIN_SHRINK_TIME)
+			. set_trans(Tween.TRANS_QUAD)
+			. set_ease(Tween.EASE_IN)
+		)
+		(
+			tw
+			. tween_property(mi, "position", cell_local(hop["to"]), SPIN_MOVE_TIME)
+			. set_trans(Tween.TRANS_QUAD)
+			. set_ease(Tween.EASE_IN_OUT)
+		)
+		(
+			tw
+			. tween_property(mi, "scale", Vector3.ONE, SPIN_GROW_TIME)
+			. set_trans(Tween.TRANS_BACK)
+			. set_ease(Tween.EASE_OUT)
+		)
+	return SPIN_SHRINK_TIME + SPIN_MOVE_TIME + SPIN_GROW_TIME
 
 
 ## Single source of truth for the colour -> material map, shared by the board, the
