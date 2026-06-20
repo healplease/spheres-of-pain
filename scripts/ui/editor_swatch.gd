@@ -31,16 +31,25 @@ func set_selected(on: bool) -> void:
 	queue_redraw()
 
 
+## Hover hint: what the bubble does plus the key that selects it. The flat palette
+## discs read ambiguously on their own, so the tooltip spells out each one's role.
 func _label() -> String:
 	match value:
 		GridModel.BLACK:
-			return "Black obstacle  (Shift+1)"
+			return "Black obstacle — indestructible; never matches, just blocks.  (Shift+1)"
 		GridModel.SPIN:
-			return "Spin bubble  (Shift+2)"
+			return (
+				"Spin bubble — indestructible; rotates its neighbours' colours one step "
+				+ "whenever a sphere lands.  (Shift+2)"
+			)
 		GridModel.BOUNCE:
-			return "Bounce bubble  (Shift+3)"
+			return "Bounce bubble — indestructible; fired spheres ricochet off it.  (Shift+3)"
 		_:
-			return "Colour %d  (%s)" % [value, "0" if value == 9 else str(value + 1)]
+			var key := "0" if value == 9 else str(value + 1)
+			return (
+				"Colour %d — a breakable sphere; match 3+ of a colour to pop them.  (key %s)"
+				% [value, key]
+			)
 
 
 func _draw() -> void:

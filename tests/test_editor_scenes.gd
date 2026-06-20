@@ -47,7 +47,7 @@ func test_level_editor_restores_a_draft() -> void:
 	draft.lore_fragment = "tag"
 	draft.width = 6
 	draft.num_colors = 3
-	draft.danger_row = 5 + LevelAuthoring.DANGER_BUFFER  # height 5
+	draft.danger_row = 5  # lose line at the field's bottom edge -> height 5
 	draft.layout = PackedStringArray(["012...", "......"])
 	GameState.editor_draft = draft
 	GameState.editor_source_path = ""

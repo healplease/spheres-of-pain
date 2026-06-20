@@ -9,11 +9,11 @@ extends RefCounted
 ## game uses); this packs that back into the ASCII `layout` plus the model params a
 ## level needs. `num_colors` is derived from the colours actually placed and
 ## `danger_row` from the editor's field height, so neither has to be a panel field.
-
-## Empty rows of headroom below the authored field before the lose line, mirroring
-## LevelController3D.GROWTH_BUFFER so a user level plays with the same headroom a
-## free-play or built-in board gets.
-const DANGER_BUFFER := 9
+##
+## The whole authored field is emitted — including its empty rows — so the headroom an
+## author leaves at the bottom IS the level's headroom (no buffer is auto-added at play
+## time). The lose line therefore sits at the bottom edge of the field (danger_row =
+## height = layout.size()).
 
 
 ## The layout character for a cell value: the inverse of the parse table in
@@ -44,10 +44,12 @@ static func derive_num_colors(model: GridModel) -> int:
 
 
 ## Pack `model` (plus the editor's field height + text) into a fresh LevelResource.
-## Rows are emitted 0..deepest-occupied (trailing empty rows trimmed, like the
-## shipped levels); each row is padded to model.width. Theme colours keep the
-## LevelResource defaults — they aren't authorable yet. The result still needs
-## validate() before it is played or saved (an empty board is invalid).
+## All `height` rows are emitted, INCLUDING the empty ones the author left as headroom
+## — those rows are the level's headroom, so nothing is trimmed and no buffer is added.
+## Each row is padded to model.width. The lose line sits at the field's bottom edge
+## (danger_row = height = layout.size()). Theme colours keep the LevelResource defaults
+## — they aren't authorable yet. The result still needs validate() before it is played
+## or saved (an empty board is invalid).
 static func to_level(
 	model: GridModel, height: int, title: String, tagline: String
 ) -> LevelResource:
@@ -57,15 +59,10 @@ static func to_level(
 	lv.lore_fragment = tagline
 	lv.width = model.width
 	lv.num_colors = derive_num_colors(model)
-	lv.danger_row = height + DANGER_BUFFER
-
-	var deepest := -1
-	for cell in model.cells:
-		if cell.y > deepest:
-			deepest = cell.y
+	lv.danger_row = height
 
 	var layout := PackedStringArray()
-	for r in range(deepest + 1):
+	for r in range(height):
 		var row := ""
 		for c in range(model.width):
 			var cell := Vector2i(c, r)

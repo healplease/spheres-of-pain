@@ -38,7 +38,7 @@ func test_controller_builds_board_from_level() -> void:
 	await wait_physics_frames(2)
 	assert_eq(scene.columns, 9, "level 1 width applied")
 	assert_eq(scene.danger_row, 14, "level 1 danger row applied")
-	assert_eq(scene.model.count_colored(), 36, "level 1 layout: 9x4 spheres")
+	assert_eq(scene.model.count_colored(), 36, "level 1 layout: 36 spheres in its top 4 rows")
 
 
 func _count_value(model: GridModel, value: int) -> int:

@@ -12,7 +12,6 @@ const FRAME_THICK := 0.3  # frame bar cross-section (metres)
 const FRAME_DEPTH := 0.6  # frame bar depth toward the camera (metres)
 const FIELD_CENTER_X := 640.0  # logical x the field + muzzle are centred on
 const TOP_Y := 80.0  # logical y of the row-0 sphere centres
-const GROWTH_BUFFER := 9  # empty rows below the fill before the danger line
 # Camera framing margins + backdrop offset live in StageView, which owns the camera.
 # Vertical stack below the danger (lose) line, in row-steps: the gun sits this far
 # below the line, then the red miss-exit bar sits this far below the gun. A smaller
@@ -341,13 +340,14 @@ func _input(event: InputEvent) -> void:
 
 ## Roll a random field size within the configured ranges and derive every logical
 ## coordinate from it: the board origin (so the field stays centred on
-## FIELD_CENTER_X), the danger row (a fixed growth buffer below the fill), the
-## muzzle, and the bottom miss-exit line. The camera reframes to whatever this
-## produces (see _place_camera), so any size in range is captured in full.
+## FIELD_CENTER_X), the danger row (the bottom edge of the field — fill_random leaves
+## its own empty headroom band there), the muzzle, and the bottom miss-exit line. The
+## camera reframes to whatever this produces (see _place_camera), so any size in range
+## is captured in full.
 func _pick_field_dimensions() -> void:
 	columns = randi_range(min_columns, max_columns)
 	rows = randi_range(min_rows, max_rows)
-	danger_row = rows + GROWTH_BUFFER
+	danger_row = rows
 	_layout_field()
 
 

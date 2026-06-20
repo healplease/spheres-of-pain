@@ -18,14 +18,16 @@ const FRAME_DEPTH := 0.6
 const FIELD_CENTER_X := 640.0
 const TOP_Y := 80.0
 
-# The editable grid the player fills. danger_row is derived from height (in
-# LevelAuthoring), so these bounds only shape the rectangle + the camera frame.
+# The editable grid the player fills. The whole field is the playable area — the lose
+# line sits at its bottom edge (danger_row = height), so the empty rows an author
+# leaves at the bottom ARE the level's headroom (nothing is auto-added). The default
+# is a tall 10x12 so there is room to fill the top and leave headroom below.
 const MIN_WIDTH := 3
 const MAX_WIDTH := 16
 const MIN_HEIGHT := 2
-const MAX_HEIGHT := 14
-const DEFAULT_WIDTH := 8
-const DEFAULT_HEIGHT := 5
+const MAX_HEIGHT := 20
+const DEFAULT_WIDTH := 10
+const DEFAULT_HEIGHT := 12
 
 # Screen margins (design px) kept clear of the camera frame so the board sits
 # centred with equal gaps on both sides: the palette lives in the left gap, the
@@ -116,7 +118,7 @@ func _ready() -> void:
 
 	_restore_or_blank()
 	model.num_colors = 10  # every palette colour is placeable while authoring
-	model.danger_row = height + LevelAuthoring.DANGER_BUFFER
+	model.danger_row = height  # lose line at the field's bottom edge (see LevelAuthoring)
 	board.setup(model, _mesh, _mats, _specials, diameter)
 
 	preview.mesh = _ring_mesh
@@ -154,14 +156,14 @@ func _build_visual_assets() -> void:
 
 
 ## Start from the editor draft (a returning playtest, or a saved level opened to edit)
-## or, with no draft, a blank minimal field. Height is recovered from the draft's
-## danger_row (LevelAuthoring stored danger_row = height + DANGER_BUFFER).
+## or, with no draft, a blank minimal field. Height is the draft's danger_row, which
+## LevelAuthoring stores at the field's bottom edge (danger_row = height).
 func _restore_or_blank() -> void:
 	_source_path = GameState.editor_source_path
 	var draft := GameState.editor_draft
 	if draft != null:
 		width = clampi(draft.width, MIN_WIDTH, MAX_WIDTH)
-		height = clampi(draft.danger_row - LevelAuthoring.DANGER_BUFFER, MIN_HEIGHT, MAX_HEIGHT)
+		height = clampi(draft.danger_row, MIN_HEIGHT, MAX_HEIGHT)
 		model = draft.build_model()
 		model.width = width
 		name_edit.text = draft.title
@@ -261,7 +263,7 @@ func _on_dimension_changed(_value: float) -> void:
 	width = int(width_spin.value)
 	height = int(height_spin.value)
 	model.width = width
-	model.danger_row = height + LevelAuthoring.DANGER_BUFFER
+	model.danger_row = height
 	_prune_out_of_bounds()
 	board.sync()
 	_reframe()

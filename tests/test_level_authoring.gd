@@ -48,26 +48,29 @@ func test_layout_rows_padded_to_width() -> void:
 	m.cells[Vector2i(2, 0)] = 2
 	m.cells[Vector2i(4, 0)] = GridModel.BLACK
 	var lv := LevelAuthoring.to_level(m, 8, "T", "L")
-	assert_eq(lv.layout.size(), 1, "single occupied row")
+	assert_eq(lv.layout.size(), 8, "the whole field height is emitted, empty rows and all")
 	assert_eq(lv.layout[0], "0.2.X", "gaps -> '.', sentinel -> 'X', padded to width")
+	assert_eq(lv.layout[7], ".....", "trailing empty row kept as headroom")
 
 
-func test_layout_trims_trailing_empty_rows_but_keeps_internal_gaps() -> void:
+func test_layout_keeps_all_rows_including_empty_headroom() -> void:
 	var m := _model(3)
 	m.cells[Vector2i(0, 0)] = 1
 	m.cells[Vector2i(1, 2)] = 2  # leaves row 1 entirely empty between two occupied rows
 	var lv := LevelAuthoring.to_level(m, 6, "T", "L")
-	assert_eq(lv.layout.size(), 3, "rows 0..2 emitted; nothing past the deepest sphere")
+	assert_eq(lv.layout.size(), 6, "all 6 field rows emitted; nothing trimmed")
 	assert_eq(lv.layout[0], "1..", "row 0")
 	assert_eq(lv.layout[1], "...", "internal empty row preserved")
-	assert_eq(lv.layout[2], ".2.", "deepest row")
+	assert_eq(lv.layout[2], ".2.", "deepest sphere row")
+	assert_eq(lv.layout[5], "...", "trailing empty row kept as headroom")
 
 
-func test_danger_row_is_height_plus_buffer() -> void:
+func test_danger_row_is_field_height() -> void:
 	var m := _model(4)
 	m.cells[Vector2i(0, 0)] = 0
 	var lv := LevelAuthoring.to_level(m, 6, "T", "L")
-	assert_eq(lv.danger_row, 6 + LevelAuthoring.DANGER_BUFFER, "danger_row = height + buffer")
+	assert_eq(lv.danger_row, 6, "danger_row sits at the field's bottom edge (= height)")
+	assert_eq(lv.danger_row, lv.layout.size(), "danger_row == layout.size()")
 
 
 func test_metadata_copied() -> void:

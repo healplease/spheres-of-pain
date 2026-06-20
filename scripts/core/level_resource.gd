@@ -13,6 +13,11 @@ extends Resource
 ##   'B' / 'b'  indestructible bounce sphere (a fired sphere reflects off it)
 ## Note the hex grid: odd rows render shifted half a cell to the right, so a
 ## vertically aligned column in the text zig-zags on screen.
+##
+## The layout is the WHOLE playable field, including the empty headroom rows below the
+## spheres: the lose line sits at the field's bottom edge (danger_row == layout.size()),
+## so the trailing empty rows an author writes are the headroom before defeat — nothing
+## is auto-added at play time. More empty rows = a gentler level.
 
 @export var id: int = 1
 @export var title: String = ""

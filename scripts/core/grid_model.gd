@@ -24,6 +24,14 @@ const BLACK := -1
 const SPIN := -2
 const BOUNCE := -3
 
+## Procedural free-play generation tuning (see fill_random). The bottom band of the
+## field is always left empty as the descent's headroom, and a share of the fillable
+## cells above it is left empty too, so a generated board has gaps rather than a
+## solid slab.
+const GEN_EMPTY_BOTTOM_MIN := 5  # fewest empty rows left at the bottom of the field
+const GEN_EMPTY_BOTTOM_MAX := 7  # most empty rows left at the bottom of the field
+const GEN_HOLE_CHANCE := 0.18  # per-cell chance a fillable cell is left empty (a hole)
+
 ## Sentinel for a vacant track slot during a spin rotation. Outside every real cell
 ## value (breakable >= 0, specials -1/-2/-3) so it can stand in for "empty" while the
 ## ring is permuted. NEVER stored in `cells` — spin_step() erases a cell instead.
@@ -239,17 +247,29 @@ func spin_step() -> Array[Dictionary]:
 	return moves
 
 
-## Procedurally fill a fresh free-play board: every cell in the first `rows` rows
-## takes a random breakable colour in [0, num_colors), then a fraction of cells are
-## overwritten with black obstacles. Uses this model's `rng`, so seeding `rng`
-## reproduces the board (free play randomizes it; tests can pin a seed).
+## Procedurally fill a fresh free-play board of `rows` total rows. The bottom
+## GEN_EMPTY_BOTTOM_MIN..MAX rows are always left empty as the descent's headroom
+## (the lose line sits at the field's bottom edge); above that band every cell takes
+## a random breakable colour in [0, num_colors) UNLESS it rolls a hole
+## (GEN_HOLE_CHANCE), so empty cells are a viable outcome and the field has gaps. A
+## fraction of the placed spheres are then turned into black obstacles. Uses this
+## model's `rng`, so seeding `rng` reproduces the board (free play randomizes it;
+## tests can pin a seed).
 func fill_random(rows: int, black_fraction: float) -> void:
-	for r in range(rows):
+	var empty_bottom := rng.randi_range(GEN_EMPTY_BOTTOM_MIN, GEN_EMPTY_BOTTOM_MAX)
+	var fill_rows := maxi(0, rows - empty_bottom)
+	for r in range(fill_rows):
 		for c in range(width):
+			if rng.randf() < GEN_HOLE_CHANCE:
+				continue  # leave this cell empty — a viable hole in the field
 			cells[Vector2i(c, r)] = rng.randi() % num_colors
-	var black_count := int(round(rows * width * black_fraction))
+	# Blacken a share of the spheres actually placed (not raw grid area), so holes stay
+	# holes rather than spawning floating obstacles. black_count is 0 on an empty fill,
+	# so the indexing below only runs when `placed` is non-empty.
+	var placed := cells.keys()
+	var black_count := int(round(placed.size() * black_fraction))
 	for _i in range(black_count):
-		cells[Vector2i(rng.randi() % width, rng.randi() % rows)] = BLACK
+		cells[placed[rng.randi() % placed.size()]] = BLACK
 
 
 # --- win / lose ---------------------------------------------------------------
