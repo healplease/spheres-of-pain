@@ -1,6 +1,6 @@
 # Spheres of Pain
 
-A dark-fantasy **cluster bubble-shooter** for desktop, built in **Godot 4.6** (GDScript).
+A dark-fantasy **cluster bubble-shooter** for desktop, built in **Godot 4.7** (GDScript).
 Mechanically faithful to *Clusterz!*, with our own grimdark levels and art.
 
 The game ships as a single **3D presentation** (`scripts/play3d/`, `scenes/level_3d.tscn`),
@@ -13,7 +13,7 @@ unit-tested under `tests/`). The 3D views only reflect the model — they never 
 
 | Tool | Version | Notes |
 | --- | --- | --- |
-| **Godot** | **4.6** (standard build) | The GDScript/standard editor — **not** the .NET/mono build. |
+| **Godot** | **4.7** (standard build) | The GDScript/standard editor — **not** the .NET/mono build. |
 | **Git** | any | To clone the repo. |
 | **Python** | 3.8+ | Only needed for the lint/format tooling (`gdtoolkit`). Optional but recommended. |
 
@@ -61,7 +61,7 @@ This gives you the `gdformat`, `gdlint`, and `gdparse` CLIs (see [Code quality](
 
 ### 4. Open the project
 
-Open `project.godot` in Godot 4.6. The editor should load with no errors. If you installed GUT and
+Open `project.godot` in Godot 4.7. The editor should load with no errors. If you installed GUT and
 see a plugin error, re-check that it exists at `addons/gut/` and is enabled under
 *Project Settings → Plugins*.
 

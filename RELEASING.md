@@ -38,7 +38,7 @@ fixes. Pre-releases like `v1.2.3-rc1` are allowed (still published as a normal r
 ## What the build does (and notable choices)
 
 - Builds on `ubuntu-latest`, cross-compiling the Windows binary with the official
-  Godot 4.6.3 export templates (no local templates needed).
+  Godot 4.7 export templates (no local templates needed).
 - Ships a **single self-contained `.exe`** (`binary_format/embed_pck=true`).
 - `tests/` and the editor addons (GUT, MCP server — both gitignored, dev-only) are
   stripped before export so the headless build doesn't depend on them.

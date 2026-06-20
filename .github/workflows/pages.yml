@@ -31,7 +31,7 @@ concurrency:
   cancel-in-progress: true
 
 env:
-  GODOT_VERSION: "4.6.3"
+  GODOT_VERSION: "4.7"
   EXPORT_PRESET: "Web"
 
 jobs:

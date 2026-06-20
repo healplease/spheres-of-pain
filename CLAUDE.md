@@ -3,7 +3,7 @@
 Working notes for Claude. Read this first every session.
 
 **Spheres of Pain** is an original **dark-fantasy cluster bubble-shooter** for desktop,
-built in **Godot 4.6** (mechanics faithful to *Clusterz!*, our own grimdark levels/art).
+built in **Godot 4.7** (mechanics faithful to *Clusterz!*, our own grimdark levels/art).
 
 - **Game design + roadmap:** `C:\Users\olhav\.claude\plans\before-we-start-i-swirling-crayon.md` (the GDD).
 - **Build status & how to run/test:** see the project memory files (`spheres-of-pain-status`, `godot-verification-workflow`).

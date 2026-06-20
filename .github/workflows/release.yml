@@ -14,7 +14,7 @@ permissions:
   contents: write   # required to create the release and upload assets
 
 env:
-  GODOT_VERSION: "4.6.3"
+  GODOT_VERSION: "4.7"
   EXPORT_PRESET: "Windows Desktop"
 
 jobs:
