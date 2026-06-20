@@ -52,18 +52,24 @@ func _process(delta: float) -> void:
 		_vig_mat.set_shader_parameter("phase", _phase)
 
 
+## The danger tier for a given rows-to-line, as a DangerTier: SLOW at exactly two rows, FAST at
+## one, NONE otherwise. Shared with NarratorDirector so its "danger rising" gate escalates on the
+## same thresholds as the audio/visuals.
+static func tier_for(rows_left: int) -> DangerTier:
+	match rows_left:
+		2:
+			return DangerTier.SLOW
+		1:
+			return DangerTier.FAST
+	return DangerTier.NONE
+
+
 ## Map proximity to the lose line (rows_left = rows_to_danger) onto a tier and route
-## it to BOTH the audio heartbeats and the visuals so they stay locked together. SLOW
-## at exactly two rows, FAST at one; anything else — safe, won, or lost (game_over) —
-## is NONE. No-op if unchanged, so the per-shot re-calls don't restart the fade.
+## it to BOTH the audio heartbeats and the visuals so they stay locked together. Anything
+## but one/two rows — safe, won, or lost (game_over) — is NONE. No-op if unchanged, so the
+## per-shot re-calls don't restart the fade.
 func set_tier(rows_left: int, game_over: bool) -> void:
-	var tier := DangerTier.NONE
-	if not game_over:
-		match rows_left:
-			2:
-				tier = DangerTier.SLOW
-			1:
-				tier = DangerTier.FAST
+	var tier := DangerTier.NONE if game_over else tier_for(rows_left)
 	if tier == _tier:
 		return
 	_tier = tier

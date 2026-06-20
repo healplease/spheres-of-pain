@@ -19,11 +19,11 @@ config/icon="res://icon.svg"
 
 [autoload]
 
-Log="*res://scripts/log.gd"
-GameState="*res://scripts/game_state.gd"
-Sound="*res://scripts/sound_manager.gd"
-Settings="*res://scripts/settings.gd"
-Narrator="*res://scripts/narrator.gd"
+Log="*res://scripts/autoload/log.gd"
+GameState="*res://scripts/autoload/game_state.gd"
+Sound="*res://scripts/autoload/sound_manager.gd"
+Settings="*res://scripts/autoload/settings.gd"
+Narrator="*res://scripts/autoload/narrator.gd"
 
 [display]
 

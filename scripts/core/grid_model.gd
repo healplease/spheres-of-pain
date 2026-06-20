@@ -185,31 +185,11 @@ func randomize_colors() -> void:
 			cells[cell] = rng.randi_range(0, num_colors - 1)
 
 
-## After a shot lands, every SPIN sphere rotates the CONTENTS of its neighbouring
-## "track" cells one step counter-clockwise — and the spheres physically MOVE, they
-## no longer just swap colours in place. Empty slots take part too, so a sphere can
-## travel into an empty slot or an empty slot can travel round and vacate a sphere's
-## cell. Returns a moves list ({from, to, color}) — one per breakable sphere that ends
-## up somewhere new — so the view can animate the travel; empty slots produce no move
-## but are still vacated/filled by the rotation.
-##
-## A track cell is an in-bounds, non-indestructible neighbour (breakable OR empty);
-## indestructible neighbours and out-of-bounds positions are excluded and the ring
-## compacts over them (a sphere may "jump" the gap to the next track slot).
-##
-## Spins resolve ONE AT A TIME in reading order (top-to-bottom, then left-to-right),
-## each acting on the board the previous spins left behind — so two nearby spins both
-## take effect (the later one rotates the cells the earlier one already moved) instead
-## of one cancelling the other. A spin's own ring is read in full before it writes, so
-## a single rotation stays simultaneous within itself. Each sphere is tracked from its
-## starting cell to its final cell, and the returned moves are those net hops — always
-## a clean permutation (each origin once, each destination once), so the view can
-## re-key its nodes safely even when a sphere is carried through two rotations.
-##
-## Hex.DIRS[parity] is authored so the same index is the same compass direction for
-## both row parities, walking E -> up-right -> up-left -> W -> down-left -> down-right
-## — counter-clockwise on screen. Reading the ring in DIRS order and shifting each
-## slot's content to the next slot (i -> i+1) is therefore a CCW rotation.
+## Rotate every SPIN sphere's ring of breakable/empty "track" neighbours one slot
+## counter-clockwise (spheres physically move; the ring compacts over indestructibles/walls).
+## Spins resolve one at a time in reading order, each ring read fully before it writes; returns
+## the net hops ({from, to, color}) as a clean permutation for the view to animate.
+## See docs/architecture/spin.md for the full rationale (track cells, ordering, CCW direction).
 func spin_step() -> Array[Dictionary]:
 	var spins: Array[Vector2i] = []
 	for cell in cells:

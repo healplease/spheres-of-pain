@@ -11,18 +11,13 @@ extends RefCounted
 ## Returns {path: PackedVector2Array, cell: Vector2i, miss: false} for a hit, or
 ## {path, miss: true} for a shot that exits the bottom without attaching.
 
-## How close (as a fraction of the cell spacing `diameter`) the moving sphere's
-## centre must come to a settled sphere's centre to count as a hit. At 0.92 the two
-## rendered spheres just touch (radius 0.46·diameter each); using less than that
-## gives the *moving* sphere a smaller hitbox than it looks, so a precise shot can
-## be threaded through a narrow gap between two field spheres — a skill play. Kept
-## above ~0.5 so a shot can't pass straight through two touching spheres. Both the
-## aim preview and the live shot run this same simulate(), so they stay identical.
+## Hit radius as a fraction of cell spacing `diameter`: below the 0.92 "spheres just touch"
+## value so a precise shot can thread a gap (skill play), but kept > ~0.5 so it can't pass
+## through two touching spheres. See docs/architecture/shot-simulation.md.
 const HIT_DISTANCE_SCALE := 0.78
 
-## A fired sphere reflects off a BOUNCE sphere like a wall instead of attaching. Cap
-## the reflections per shot so a ball trapped between two bouncers can't burn the
-## whole step budget — past the cap it falls through to a normal miss-exit.
+## Max BOUNCE reflections per shot, so a ball trapped between two bouncers can't burn the whole
+## step budget — past the cap it falls through to a normal miss-exit. See shot-simulation.md.
 const MAX_BOUNCES := 12
 
 var model: GridModel

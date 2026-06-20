@@ -21,7 +21,7 @@ func _lines() -> NarratorLines:
 func _narrator(seed_value: int) -> Node:
 	# A fresh instance (not the autoload), so the test never mutates global state. Not added
 	# to the tree, so _ready()'s randomize() doesn't fire and the seed stays in control.
-	var n: Node = autofree(load("res://scripts/narrator.gd").new())
+	var n: Node = autofree(load("res://scripts/autoload/narrator.gd").new())
 	n.lines = _lines()
 	n.rng.seed = seed_value
 	return n

@@ -149,11 +149,7 @@ func _build_visual_assets() -> void:
 	var assets := SphereAssets.new(SPHERE_RADIUS)
 	_mesh = assets.mesh
 	_mats = assets.mats
-	_specials = {
-		GridModel.BLACK: assets.black_mat,
-		GridModel.SPIN: assets.spin_mat,
-		GridModel.BOUNCE: assets.bounce_mat,
-	}
+	_specials = assets.specials
 	_ring_mat = assets.preview_mat
 
 
@@ -406,54 +402,18 @@ func _update_hover() -> void:
 		_redraw_ring()
 
 
-## Draw the dotted circle over the hovered cell (or clear it). Same dot-walk the play
-## aim ray uses for its landing ring, lifted slightly toward the camera.
+## Draw the dotted circle over the hovered cell (or clear it). Same dot walk the play aim ray
+## uses for its landing ring (see DottedPath), lifted slightly toward the camera.
 func _redraw_ring() -> void:
 	_ring_mesh.clear_surfaces()
 	if not _has_hover:
 		return
 	_ring_mat.albedo_color = Color(0.92, 0.86, 0.86, 0.8)
 	var center := Hex.cell_to_world(_hover_cell, origin2d, diameter)
+	var ring := DottedPath.ring_points(center, diameter * SPHERE_RADIUS, RING_SEGMENTS)
 	_ring_mesh.surface_begin(Mesh.PRIMITIVE_LINES)
-	_emit_ring(center, diameter * SPHERE_RADIUS)
+	DottedPath.emit(_ring_mesh, ring, RING_DOT, RING_GAP, to3d)
 	_ring_mesh.surface_end()
-
-
-func _emit_ring(center: Vector2, radius: float) -> void:
-	var ring := PackedVector2Array()
-	ring.resize(RING_SEGMENTS + 1)
-	for i in range(RING_SEGMENTS + 1):
-		var ang := TAU * float(i) / float(RING_SEGMENTS)
-		ring[i] = center + Vector2(cos(ang), sin(ang)) * radius
-	_emit_dotted_path(ring)
-
-
-func _emit_dotted_path(points: PackedVector2Array) -> void:
-	var cycle := RING_DOT + RING_GAP
-	var s := 0.0
-	for i in range(points.size() - 1):
-		var a := points[i]
-		var b := points[i + 1]
-		var seg := b - a
-		var seg_len := seg.length()
-		if seg_len < 0.0001:
-			continue
-		var dir := seg / seg_len
-		var local := 0.0
-		while local < seg_len:
-			var into := fmod(s + local, cycle)
-			if into < RING_DOT:
-				var run := minf(RING_DOT - into, seg_len - local)
-				_add_dot(a + dir * local, a + dir * (local + run))
-				local += run
-			else:
-				local += cycle - into
-		s += seg_len
-
-
-func _add_dot(p0: Vector2, p1: Vector2) -> void:
-	_ring_mesh.surface_add_vertex(to3d(p0) + Vector3(0, 0, 0.05))
-	_ring_mesh.surface_add_vertex(to3d(p1) + Vector3(0, 0, 0.05))
 
 
 # --- play / save --------------------------------------------------------------

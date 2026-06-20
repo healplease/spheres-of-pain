@@ -148,8 +148,14 @@ Pain (DEBUG)"**; the editor is "Spheres of Pain - Godot Engine" — target DEBUG
   The old 2D presentation has been removed. The simulation still runs in **logical 2D pixel space**
   (`GridModel` + `ShotSimulator`); the 3D views map that plane to/from world space via `to3d`/`to2d`
   (one cell ≈ 1 m). Keep that model/sim dimension-agnostic — only `scripts/play3d/` knows about 3D.
-- **Layout:** `scripts/core/` (pure logic), `scripts/play3d/` (3D node behavior), `scenes/`,
-  `levels/` (level `.tres`), `tests/`, `art/ audio/ shaders/ themes/`.
+- **Layout:** `scripts/core/` (pure logic), `scripts/autoload/` (the 5 singletons),
+  `scripts/play3d/` (the two scene-root controllers + `board_view_3d`/`shooter_3d`, which are
+  bound into `.tscn` nodes), `scripts/play3d/views/` (code-instanced presentation nodes —
+  `aim_view`, `stage_view`, `danger_view`, `center_banner`, `narrator_view`, `frame_view`,
+  `projectile_3d`, `sphere_assets`, plus the static `dotted_path` render helper), `scripts/ui/`,
+  `scenes/`, `levels/` (level `.tres`), `tests/`, `docs/architecture/` (long-form rationale),
+  `art/ audio/ shaders/ themes/`. Moving a `class_name` script needs no source edits (no
+  `preload` paths) but does need `.godot/uid_cache.bin` cleared — see the verification memory.
 - **Levels are data, not code** (`LevelResource` `.tres`) once M2 lands.
 - **Input via the named InputMap action `fire`** (LMB), checked with `event.is_action_pressed(...)`.
   The window runs **fullscreen** (`display/window/size/mode=3`); `LevelController3D._input` quits on

@@ -20,6 +20,9 @@ var black_mat: ShaderMaterial
 var spin_mat: ShaderMaterial
 var bounce_mat: ShaderMaterial
 var preview_mat: StandardMaterial3D
+## Indestructible sentinel (< 0) -> its material, ready to merge into a board's lookup so the
+## controllers don't each re-assemble the same dict.
+var specials: Dictionary
 
 
 func _init(radius: float) -> void:
@@ -58,6 +61,11 @@ func _init(radius: float) -> void:
 	spin_mat.shader = _SPIN
 	bounce_mat = ShaderMaterial.new()
 	bounce_mat.shader = _BOUNCE
+	specials = {
+		GridModel.BLACK: black_mat,
+		GridModel.SPIN: spin_mat,
+		GridModel.BOUNCE: bounce_mat,
+	}
 	preview_mat = StandardMaterial3D.new()
 	preview_mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
 	preview_mat.albedo_color = Color(0.9, 0.85, 0.85, 0.55)

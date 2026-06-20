@@ -38,15 +38,10 @@ func next() -> int:
 	return idx
 
 
-## Re-deal the bag: a fresh Fisher–Yates shuffle (our own rng, not Array.shuffle()'s global
-## one, so tests stay reproducible), then guarantee the first draw isn't the line we just said.
+## Re-deal the bag: a fresh shuffle with our own seedable rng (see RngUtils), then guarantee
+## the first draw isn't the line we just said.
 func _reshuffle() -> void:
-	_order = PackedInt32Array(range(_size))
-	for i in range(_size - 1, 0, -1):
-		var j := rng.randi_range(0, i)
-		var tmp := _order[i]
-		_order[i] = _order[j]
-		_order[j] = tmp
+	_order = RngUtils.shuffled(PackedInt32Array(range(_size)), rng)
 	if _order[0] == _last and _size > 1:
 		var t := _order[0]
 		_order[0] = _order[1]

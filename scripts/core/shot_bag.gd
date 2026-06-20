@@ -42,10 +42,5 @@ func _refill(present: Array[int]) -> void:
 	for c in present:
 		for _i in present.size():
 			_bag.append(c)
-	# Fisher–Yates with our own rng (Array.shuffle() uses the global RNG, which
-	# wouldn't be reproducible in tests).
-	for i in range(_bag.size() - 1, 0, -1):
-		var j := rng.randi_range(0, i)
-		var tmp := _bag[i]
-		_bag[i] = _bag[j]
-		_bag[j] = tmp
+	# Shuffle with our own seedable rng (not Array.shuffle()'s global one); see RngUtils.
+	_bag = RngUtils.shuffled(_bag, rng)

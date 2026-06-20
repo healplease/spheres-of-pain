@@ -21,31 +21,12 @@ const GROWTH_BUFFER := 9  # empty rows below the fill before the danger line
 const MUZZLE_GAP_ROWS := 0.3  # gun below the danger line (was 0.6 — hand-tuned 690)
 const EXIT_GAP_ROWS := 0.6  # red miss-exit bar below the gun
 
-# --- Aim-ray dots ---
-# The trajectory preview is a dotted line tinted to the loaded sphere's colour.
-# DOT and GAP are in logical pixels (the simulated path's own space), so they scale
-# naturally with perspective — tweak them to restyle the ray. ALPHA is the dot opacity.
-const PREVIEW_DOT := 6.0  # on-length of each dot along the path
-const PREVIEW_GAP := 9.0  # empty space between consecutive dots
-const PREVIEW_ALPHA := 0.85  # dot opacity (0..1)
-# On a hit, the resting place is marked with a dotted ring instead of drawing the
-# final snap segment. Radius is a multiple of the sphere radius (1.0 = bubble-sized).
-const PREVIEW_LAND_SCALE := 1.0
-const PREVIEW_RING_SEGMENTS := 48  # polyline resolution of the ring (higher = smoother)
 # Sentinel for _update_heartbeat's optional rows_left arg (see the danger section below).
 const ROWS_TO_DANGER_UNSET := 0x7fffffff  # "not supplied" sentinel for _update_heartbeat
-# Narrator event gates — restraint is the brand, so only rare, earned moments speak. A clear
-# must free at least this many spheres to earn a "big clear" line; an orphan sweep at least
-# this many (and bigger than the matched pop) to earn the rarer "lucky chain" line.
-const NARR_BIG_CLEAR_MIN := 8
-const NARR_LUCKY_ORPHAN_MIN := 6
-# Minimum gap (ms) between *ambient* narrator barks (big clear / lucky chain / danger rising)
-# so the voice doesn't chatter when the player clears fast. Milestone lines — descent at the
-# start, victory/defeat at the end — bypass it and always speak.
-const NARR_COOLDOWN_MSEC := 17000
 
-# The intro/end overlay (banner, lore, choice panel, fades) lives in CenterBanner;
-# the danger heartbeat/visuals live in DangerView. Both are driven from here.
+# The intro/end overlay (banner, lore, choice panel, fades) lives in CenterBanner; the danger
+# heartbeat/visuals live in DangerView; the narrator's bark cadence lives in NarratorDirector.
+# All are driven from here.
 
 @export var diameter := 56.0
 @export_range(1, 10) var num_colors := 5  # capped at BoardView3D.PALETTE.size()
@@ -66,7 +47,6 @@ var muzzle2d := Vector2(640, 690)  # logical muzzle
 var model: GridModel
 var sim := ShotSimulator.new()
 var game_over := false
-var aim_ray_enabled := false  # trajectory preview hidden by default; [A] toggles
 
 var _s := 1.0 / 56.0  # metres per logical pixel = 1/diameter; set in _ready
 var _play_bottom := 720.0  # logical miss-exit line (below the muzzle)
@@ -75,18 +55,13 @@ var _bag := ShotBag.new()  # decides the gun's next colour (true-random or bag m
 var _mesh: SphereMesh
 var _mats: Array[StandardMaterial3D] = []
 var _specials: Dictionary  # indestructible sentinel (< 0) -> Material (obsidian / swirl / pulse)
-var _preview_mesh := ImmediateMesh.new()
-var _preview_mat: StandardMaterial3D
-var _aim2d := Vector2(0, -1)
+var _preview_mat: StandardMaterial3D  # handed to AimView; built in _build_visual_assets
+var _aim_view: AimView  # owns the aim direction + dotted trajectory ray + its visibility
 var _last_sim: Dictionary = {}
 # The trajectory only changes when the aim moves or the board changes, so we
 # re-simulate on those events (mouse motion, shot resolution, ray shown) rather
 # than every frame. simulate() is a heavy per-step loop; running it idle was waste.
 var _aim_dirty := true
-# Whether the ray should currently show, before the aim_ray_enabled / game_over gates.
-# Always true in Click (ray shown whenever enabled); in Hold it's true only while the
-# fire button is held, so the ray appears only during an aim. Seeded in _ready().
-var _aim_active := true
 var _shots_fired := 0  # HUD counter; bumped on every shot
 # Cumulative souls unmade this level (matched pops + the orphans they sweep). Diegetically
 # "souls freed"; fuels the grim end-screen epitaph. Never reset mid-level.
@@ -98,10 +73,7 @@ var _danger_view: DangerView
 var _danger_line_mat: ShaderMaterial  # the bottom miss-exit bar (danger_line.gdshader)
 var _center_banner: CenterBanner  # owns the intro/end overlay + its fades
 var _stage_view: StageView  # owns the camera, backdrop, embers, environment
-var _narrator_view: NarratorView  # owns the grim narrator subtitle (independent of the banner)
-var _region_id := -1  # current level's region, for Narrator sub-pools; -1 = none / free play
-var _last_danger_bucket := 0  # last danger tier (0 none / 1 slow / 2 fast); narrate only on a rise
-var _last_say_msec := 0  # when the narrator last spoke (ms); gates ambient barks by the cooldown
+var _narrator: NarratorDirector  # owns the narrator subtitle + when it speaks
 
 @onready var world_env: WorldEnvironment = $WorldEnvironment
 @onready var light: DirectionalLight3D = $DirectionalLight3D
@@ -191,14 +163,26 @@ func _ready() -> void:
 	# mid-level). Hold: press aims, release fires, ray shows only while held. Click: fires
 	# on press, ray always on (when enabled).
 	shooter.hold_to_fire = Settings.control_scheme() == SettingsStore.ControlScheme.HOLD
-	shooter.aim_active_changed.connect(_on_aim_active_changed)
 
-	preview.mesh = _preview_mesh
-	preview.material_override = _preview_mat
-	# seed from the Gameplay setting; [A] still toggles in-session
-	aim_ray_enabled = Settings.aim_enabled()
-	_aim_active = not shooter.hold_to_fire  # always-on in Click; off until a press in Hold
-	_update_preview_visibility()
+	# Aim direction + dotted trajectory ray live in AimView; hand it the Preview node, the
+	# camera, the muzzle, and the logical<->world mapping. It seeds its own visibility from the
+	# Gameplay "Enable aim" setting ([A] still toggles in-session) and emits ray_revealed
+	# whenever the ray shows, which marks the trajectory dirty for the next _process.
+	_aim_view = AimView.new()
+	add_child(_aim_view)
+	_aim_view.ray_revealed.connect(_on_ray_revealed)
+	_aim_view.setup(
+		preview,
+		camera,
+		muzzle2d,
+		to3d,
+		to2d,
+		_preview_mat,
+		diameter * SPHERE_RADIUS,
+		Settings.aim_enabled(),
+		shooter.hold_to_fire
+	)
+	shooter.aim_active_changed.connect(_aim_view.set_active)
 
 	_build_frame()
 	_stage_view.frame(_frame_bounds(FRAME_THICK))  # outer edge of the frame
@@ -206,8 +190,8 @@ func _ready() -> void:
 	# Seed an initial aim + trajectory now that the camera is framed, so the gun can
 	# fire and the ray can show before the first _process frame. Afterwards we only
 	# re-simulate when the aim or board changes (see _aim_dirty / _input / _on_landed).
-	_update_aim()
-	_last_sim = sim.simulate(muzzle2d, _aim2d)
+	_aim_view.update_aim()
+	_last_sim = sim.simulate(muzzle2d, _aim_view.aim2d)
 	_aim_dirty = false
 
 	door_button.pressed.connect(GameState.go_back_from_play)
@@ -226,15 +210,16 @@ func _ready() -> void:
 		menu_button
 	)
 
-	# The grim narrator owns its own subtitle low on the HUD, independent of the centre
-	# banner, so a bark and the level lore can coexist. The line pools + never-repeat memory
-	# live in the Narrator autoload; this view only fades whatever line it's handed.
-	_narrator_view = NarratorView.new()
-	_narrator_view.setup(narrator_line, narrator_bg)
-	_region_id = GameState.region_id_for_level(_level.id) if _level != null else -1
-	# Start the level "on cooldown" so ambient barks hold for a beat; the forced descent line
-	# still speaks (after the intro), and ambient lines resume once the cooldown elapses.
-	_last_say_msec = Time.get_ticks_msec()
+	# The grim narrator owns its own subtitle low on the HUD, independent of the centre banner,
+	# so a bark and the level lore can coexist. NarratorView fades whatever line it's handed;
+	# NarratorDirector decides when to speak (line pools + never-repeat memory live in the
+	# Narrator autoload). The director seeds its cooldown + danger tier from the opening board.
+	var narrator_view := NarratorView.new()
+	narrator_view.setup(narrator_line, narrator_bg)
+	var region_id := GameState.region_id_for_level(_level.id) if _level != null else -1
+	_narrator = NarratorDirector.new()
+	add_child(_narrator)
+	_narrator.setup(narrator_view, region_id, model.rows_to_danger())
 
 	# Danger subsystem: hand the bottom-line bar material (built in _build_frame) and
 	# the red vignette material to a DangerView, which owns the heartbeat + shaders.
@@ -244,9 +229,6 @@ func _ready() -> void:
 	level_name_label.text = _level.title if _level != null else "THE PIT"
 
 	_update_status()
-	# Seed the danger tier from the starting board so a level that opens near the line doesn't
-	# spuriously narrate "danger rising" on its first grow (only a genuine worsening should).
-	_last_danger_bucket = _danger_bucket(model.rows_to_danger())
 	_update_heartbeat()  # an authored level could start already close to the line
 
 	(
@@ -262,7 +244,7 @@ func _ready() -> void:
 				"danger_row": danger_row,
 				"colored": model.count_colored(),
 				"true_random": _bag.true_random,
-				"aim": aim_ray_enabled,
+				"aim": _aim_view.aim_ray_enabled,
 				"hold": shooter.hold_to_fire,
 			}
 		)
@@ -270,7 +252,7 @@ func _ready() -> void:
 
 	if _level != null:
 		_center_banner.show_intro(_level.title, _level.lore_fragment)
-		_say_descent_after_intro()
+		_narrator.say_descent_after_intro()
 
 	if OS.has_environment("SOP_AUTOPLAY"):
 		var t := Timer.new()
@@ -288,125 +270,16 @@ func _process(_delta: float) -> void:
 	if _aim_dirty:
 		# Aim or board changed since last sim — refresh the cached trajectory. _on_fired
 		# re-aims on the actual shot, so a stale path between events is harmless.
-		_last_sim = sim.simulate(muzzle2d, _aim2d)
+		_last_sim = sim.simulate(muzzle2d, _aim_view.aim2d)
 		_aim_dirty = false
-		if preview.visible:  # in Hold the ray is hidden most of the time — skip the rebuild
-			_update_preview(_last_sim)
+		if _aim_view.ray_visible():  # in Hold the ray is hidden most of the time — skip rebuild
+			_aim_view.draw(_last_sim, shooter.current_color)
 
 
-# --- aim / preview ------------------------------------------------------------
-
-
-func _update_aim() -> void:
-	# Cast the mouse ray onto the board plane (Z=0) and aim from the muzzle to it.
-	var mouse := get_viewport().get_mouse_position()
-	var from := camera.project_ray_origin(mouse)
-	var dir := camera.project_ray_normal(mouse)
-	if absf(dir.z) < 0.00001:
-		return
-	var t := -from.z / dir.z
-	if t <= 0.0:
-		return
-	var hit := from + dir * t
-	var d := to2d(hit) - muzzle2d
-	if d.length() < 1.0:
-		return
-	var a := d.normalized()
-	if a.y > -0.12:  # never aim sideways/down
-		a.y = -0.12
-		a = a.normalized()
-	_aim2d = a
-
-
-func _update_preview(sim_result: Dictionary) -> void:
-	_preview_mesh.clear_surfaces()
-	var path2d: PackedVector2Array = sim_result.get("path", PackedVector2Array())
-	if path2d.size() < 2:
-		return
-	_preview_mat.albedo_color = _preview_color()
-	_preview_mesh.surface_begin(Mesh.PRIMITIVE_LINES)
-	if sim_result.get("miss", false):
-		# A miss never settles — dot the whole flight out through the bottom.
-		_emit_dotted_path(path2d)
-	else:
-		# A hit's path ends with the snap from its collision point into the grid cell.
-		# Drop that final "bend" segment and mark the resting place with a dotted ring
-		# instead, so the preview reads as "the bubble will land *here*".
-		_emit_dotted_path(path2d.slice(0, path2d.size() - 1))
-		_emit_dotted_ring(path2d[path2d.size() - 1], diameter * SPHERE_RADIUS * PREVIEW_LAND_SCALE)
-	_preview_mesh.surface_end()
-
-
-## Walk a polyline (logical space) emitting one short segment ("dot") per DOT+GAP
-## cycle. `s` is the arc length from the start, kept continuous across segments so the
-## dot/gap rhythm never resets (or skips a beat) at a corner. Surface must be open.
-func _emit_dotted_path(points: PackedVector2Array) -> void:
-	var cycle: float = PREVIEW_DOT + PREVIEW_GAP
-	var s := 0.0
-	for i in range(points.size() - 1):
-		var a: Vector2 = points[i]
-		var b: Vector2 = points[i + 1]
-		var seg := b - a
-		var seg_len := seg.length()
-		if seg_len < 0.0001:
-			continue
-		var dir := seg / seg_len
-		var local := 0.0  # distance walked within this segment
-		while local < seg_len:
-			var into := fmod(s + local, cycle)  # position within the current dot's cycle
-			if into < PREVIEW_DOT:
-				var run: float = minf(PREVIEW_DOT - into, seg_len - local)  # rest of this dot on this segment
-				_add_preview_dot(a + dir * local, a + dir * (local + run))
-				local += run
-			else:
-				local += cycle - into  # inside the gap: jump to the next dot
-		s += seg_len
-
-
-## A dotted ring at `center` (logical space) marking where a hit will settle. Built as
-## a fine closed polyline so the same dot walk renders evenly spaced dots around it.
-func _emit_dotted_ring(center: Vector2, radius: float) -> void:
-	var ring := PackedVector2Array()
-	ring.resize(PREVIEW_RING_SEGMENTS + 1)
-	for i in range(PREVIEW_RING_SEGMENTS + 1):
-		var ang := TAU * float(i) / float(PREVIEW_RING_SEGMENTS)
-		ring[i] = center + Vector2(cos(ang), sin(ang)) * radius
-	_emit_dotted_path(ring)
-
-
-## Emit one dotted segment, nudged slightly toward the camera so it floats just in
-## front of the board plane rather than z-fighting the spheres.
-func _add_preview_dot(p0: Vector2, p1: Vector2) -> void:
-	_preview_mesh.surface_add_vertex(to3d(p0) + Vector3(0, 0, 0.05))
-	_preview_mesh.surface_add_vertex(to3d(p1) + Vector3(0, 0, 0.05))
-
-
-## The aim ray's colour: the loaded (muzzle) sphere's palette colour, lifted slightly
-## toward white so the darker, saturated colours still read against the abyss, at the
-## fixed dot opacity.
-func _preview_color() -> Color:
-	var pal := BoardView3D.PALETTE
-	var c: Color = pal[shooter.current_color % pal.size()]
-	c = c.lerp(Color.WHITE, 0.25)
-	c.a = PREVIEW_ALPHA
-	return c
-
-
-## The single source of truth for the aim ray's visibility: the master "Enable aim"
-## setting, AND whether an aim is currently active (always in Click, only while held in
-## Hold), AND that the level is still live. Every place that changes any of these calls
-## this, so the ray can never get stuck on or hidden.
-func _update_preview_visibility() -> void:
-	preview.visible = aim_ray_enabled and _aim_active and not game_over
-	if preview.visible:
-		_aim_dirty = true  # rebuild the ray mesh from a fresh sim now that it shows
-
-
-## Hold scheme: the fire button went down (active) or up (inactive). Drives the ray so
-## it appears only for the duration of the aim. Not emitted in Click mode.
-func _on_aim_active_changed(active: bool) -> void:
-	_aim_active = active
-	_update_preview_visibility()
+## AimView reshowed the ray (toggle, an aim press, or initial setup) — mark the trajectory
+## dirty so the next _process re-simulates and redraws it.
+func _on_ray_revealed() -> void:
+	_aim_dirty = true
 
 
 # --- setup helpers ------------------------------------------------------------
@@ -417,11 +290,7 @@ func _build_visual_assets() -> void:
 	var assets := SphereAssets.new(SPHERE_RADIUS)
 	_mesh = assets.mesh
 	_mats = assets.mats
-	_specials = {
-		GridModel.BLACK: assets.black_mat,
-		GridModel.SPIN: assets.spin_mat,
-		GridModel.BOUNCE: assets.bounce_mat,
-	}
+	_specials = assets.specials
 	_preview_mat = assets.preview_mat
 
 
@@ -459,7 +328,7 @@ func _input(event: InputEvent) -> void:
 	# Aim follows the pointer, so recompute it on motion (event-driven) rather than
 	# polling every frame; the trajectory re-simulates next frame via _aim_dirty.
 	if event is InputEventMouseMotion:
-		_update_aim()
+		_aim_view.update_aim()
 		_aim_dirty = true
 		return
 	# Fullscreen has no window chrome — Esc leaves the level (same as the HUD door
@@ -467,8 +336,7 @@ func _input(event: InputEvent) -> void:
 	if event.is_action_pressed("ui_cancel"):
 		GameState.go_back_from_play()
 	elif event.is_action_pressed("toggle_aim"):
-		aim_ray_enabled = not aim_ray_enabled
-		_update_preview_visibility()  # in Hold mode, still only shows while the button is held
+		_aim_view.toggle_enabled()  # in Hold mode, still only shows while the button is held
 
 
 ## Roll a random field size within the configured ranges and derive every logical
@@ -522,15 +390,15 @@ func _mat_for(color: int) -> Material:
 
 ## `reaim` recomputes the aim against the live pointer at the instant of firing. The
 ## `fired` signal carries no args, so a real shot uses the default (true): in Hold a fast
-## press+release can land between _process frames, leaving _aim2d stale; in Click _process
+## press+release can land between _process frames, leaving the aim stale; in Click _process
 ## already aimed this frame, so it's a no-op. Autoplay passes false — it sets its own
-## canned _aim2d and must not have it clobbered by the (absent) mouse.
+## canned aim and must not have it clobbered by the (absent) mouse.
 func _on_fired(reaim := true) -> void:
 	if game_over or not _last_sim.has("path"):
 		return
 	if reaim:
-		_update_aim()
-		_last_sim = sim.simulate(muzzle2d, _aim2d)
+		_aim_view.update_aim()
+		_last_sim = sim.simulate(muzzle2d, _aim_view.aim2d)
 	var is_miss: bool = _last_sim.get("miss", false)
 	(
 		Log
@@ -540,7 +408,7 @@ func _on_fired(reaim := true) -> void:
 			{
 				"n": _shots_fired + 1,
 				"color": shooter.current_color,
-				"aim": _aim2d,
+				"aim": _aim_view.aim2d,
 				"result": "miss" if is_miss else "hit",
 				"cell": null if is_miss else _last_sim.cell,
 			}
@@ -567,10 +435,9 @@ func _on_fired(reaim := true) -> void:
 	shooter.reload(_rand_color())
 
 
-## Coroutine: the post-shot field animations play in sequence — cluster pop / field
-## grow first, then the spin rotation — and the gun stays locked (shooter.enabled was
-## set false at fire time) until the board has fully settled, so the player can't fire
-## into a still-animating field.
+## Coroutine: the post-shot animations play in sequence (pop/grow, then spin), the gun stays
+## locked until the board settles, and the verdict is read last (the spin can push a sphere
+## across the line). See docs/architecture/level-flow.md for the full ordering rationale.
 func _on_landed(cell: Vector2i, color: int) -> void:
 	var res := model.attach(cell, color)
 	if res.did_pop:
@@ -579,7 +446,7 @@ func _on_landed(cell: Vector2i, color: int) -> void:
 		Sound.play_cluster_pop(res.popped.size() + res.orphaned.size())
 		# Every removed sphere is a soul let go of the wall — tally them for the epitaph.
 		_souls_freed += res.popped.size() + res.orphaned.size()
-		_narrate_clear(res.popped.size(), res.orphaned.size())
+		_narrator.narrate_clear(res.popped.size(), res.orphaned.size())
 	else:
 		model.grow()
 	# On a pop, ripple the clear outward from the impact cell; on a dud the grown
@@ -626,7 +493,7 @@ func _on_landed(cell: Vector2i, color: int) -> void:
 	_update_status(colored)
 	# a grow may have closed on the line; a pop may have backed off it
 	_update_heartbeat(model.danger_row - deepest)
-	_narrate_danger(model.danger_row - deepest)
+	_narrator.narrate_danger(model.danger_row - deepest)
 	# Hold the verdict a beat so the final state reads before the banner. Pop/grow and
 	# spin have already settled above; the spin can push a sphere across the line, so
 	# the verdict is read here, after it.
@@ -685,9 +552,8 @@ func _update_heartbeat(rows_left: int = ROWS_TO_DANGER_UNSET) -> void:
 
 
 func _check_end() -> void:
-	# Verdicts speak the fiction (§2.10): a win is exhausted relief, never a fanfare; a
-	# loss is the dead reclaiming you. Both lines stay short to fit the title-size banner —
-	# the longer grave-courtesy + the souls tally ride the epitaph beneath them.
+	# Verdicts speak the fiction (§2.10): short lines to fit the banner; the grave-courtesy +
+	# souls tally ride the epitaph beneath. See docs/architecture/level-flow.md.
 	if model.is_won():
 		_end("THE WALL IS QUIET.\nYou are not in it.", true)
 	elif model.is_lost():
@@ -696,6 +562,7 @@ func _check_end() -> void:
 
 func _end(msg: String, won: bool) -> void:
 	game_over = true
+	_narrator.mark_ended()  # a pending descent/danger bark must not speak past the verdict
 	(
 		Log
 		. info(
@@ -711,8 +578,7 @@ func _end(msg: String, won: bool) -> void:
 	)
 	shooter.enabled = false
 	_update_heartbeat()  # game_over now true -> both pulses fade out (cleared or consumed)
-	_preview_mesh.clear_surfaces()
-	_update_preview_visibility()  # hide the ray at once, even if a finger is still down (Hold)
+	_aim_view.hide_ray()  # cut the ray at once, even if a finger is still down (Hold)
 	if won and _level != null:
 		GameState.complete_current()
 	# Beating the final campaign level ends the whole descent: hold the verdict a beat, let
@@ -720,7 +586,7 @@ func _end(msg: String, won: bool) -> void:
 	# panel. Esc still skips out to the hub during the pause.
 	if won and GameState.selected_index == GameState.LEVEL_COUNT:
 		_center_banner.show_end(msg, true, false, false, _epitaph(true))
-		_say("victory", true)
+		_narrator.say("victory", true)
 		await get_tree().create_timer(3.5).timeout
 		if is_inside_tree():
 			GameState.go_to_epilogue()
@@ -733,7 +599,7 @@ func _end(msg: String, won: bool) -> void:
 	_center_banner.show_end(msg, won, show_next, show_retry, _epitaph(won))
 	# The voice has the last word, on the HUD beneath the verdict (it interrupts any
 	# clear/danger bark from the final shot). Forced — the end of a level always speaks.
-	_say("victory" if won else "defeat", true)
+	_narrator.say("victory" if won else "defeat", true)
 
 
 ## A one-breath souls-freed tally beneath the verdict — the fiction's "grim epitaph", not
@@ -755,63 +621,6 @@ func _update_status(colored: int = -1) -> void:
 	counter_label.text = "Spheres  %d\nShots  %d" % [colored, _shots_fired]
 
 
-# --- narrator -----------------------------------------------------------------
-
-
-## Show a narrator line for an event, region sub-pool preferred. Ambient barks are rate-limited
-## by NARR_COOLDOWN_MSEC so the voice doesn't chatter under fast play; pass `force` for milestone
-## lines (descent / victory / defeat) that must always speak. The line is only drawn from the
-## pool (consuming the bag) when it will actually show, so a suppressed bark wastes no variety.
-func _say(event_key: String, force := false) -> void:
-	if _narrator_view == null:
-		return
-	var now := Time.get_ticks_msec()
-	if not force and now - _last_say_msec < NARR_COOLDOWN_MSEC:
-		return
-	var line := Narrator.line_for(event_key, _region_id)
-	if line == "":
-		return
-	_last_say_msec = now
-	Log.debug(Log.PLAY, "narrator", {"event": event_key, "region": _region_id, "forced": force})
-	_narrator_view.show_line(line)
-
-
-## Let the centre intro (title + lore) have its moment, then the narrator murmurs from the
-## bottom as it fades — two beats, not one cluttered frame.
-func _say_descent_after_intro() -> void:
-	await get_tree().create_timer(4.0).timeout
-	if is_inside_tree() and not game_over:
-		_say("descent", true)
-
-
-## A clear earns at most one bark, gated hard so routine pops stay silent: a sweep that dwarfs
-## its trigger reads as a "lucky chain"; otherwise a large total is a "big clear".
-func _narrate_clear(popped: int, orphaned: int) -> void:
-	if orphaned >= NARR_LUCKY_ORPHAN_MIN and orphaned > popped:
-		_say("lucky_chain")
-	elif popped + orphaned >= NARR_BIG_CLEAR_MIN:
-		_say("big_clear")
-
-
-## Narrate the dread only when proximity to the lose line genuinely worsens (a tier rise),
-## never every shot — and never as the field crosses it (defeat speaks then instead).
-func _narrate_danger(rows_left: int) -> void:
-	var bucket := _danger_bucket(rows_left)
-	if bucket > _last_danger_bucket and bucket > 0 and not game_over:
-		_say("danger_rising")
-	_last_danger_bucket = bucket
-
-
-## Danger tier from rows-to-line, matching DangerView: 1 row = FAST (2), 2 rows = SLOW (1),
-## anything else (safe, or already over the line) = 0.
-func _danger_bucket(rows_left: int) -> int:
-	if rows_left == 1:
-		return 2
-	if rows_left == 2:
-		return 1
-	return 0
-
-
 # --- dev autoplay -------------------------------------------------------------
 
 
@@ -819,6 +628,6 @@ func _auto_step() -> void:
 	if game_over or not shooter.enabled:
 		return
 	var dirs := [Vector2(0, -1), Vector2(0.45, -1).normalized(), Vector2(-0.5, -1).normalized()]
-	_aim2d = dirs[randi() % dirs.size()]
-	_last_sim = sim.simulate(muzzle2d, _aim2d)
+	_aim_view.set_aim(dirs[randi() % dirs.size()])
+	_last_sim = sim.simulate(muzzle2d, _aim_view.aim2d)
 	_on_fired(false)  # keep the canned direction; don't re-aim to the (absent) mouse
