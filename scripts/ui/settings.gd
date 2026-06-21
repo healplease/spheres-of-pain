@@ -237,16 +237,6 @@ func _build_graphics_tab() -> void:
 		"Titles occasionally shudder and jitter. Turn off to keep all on-screen text perfectly still."
 	)
 
-	# Effects intensity — the master juice multiplier (camera shake, particles, flashing).
-	# Accessibility backbone: at 0 the game stays fully playable and grim on atmosphere alone.
-	_add_intensity_slider(
-		tab_graphics,
-		"Effects intensity",
-		Settings.fx_intensity(),
-		Settings.set_fx_intensity,
-		"Reduce motion, camera shake, particles, and flashing. Keeps the game fully playable and grim."
-	)
-
 
 # --- Audio ------------------------------------------------------------------
 
@@ -257,39 +247,6 @@ func _build_audio_tab() -> void:
 	_add_slider(tab_audio, "Ambience", &"ambience", "The dungeon's breathing drone.")
 	_add_slider(tab_audio, "HUD", &"hud", "Menu clicks and hovers.")
 	_add_slider(tab_audio, "Gameplay", &"gameplay", "Sphere pops and the heartbeat of dread.")
-
-
-## A 0–1 slider with a live percent read-out, wired to an arbitrary float setter (used
-## for the Graphics "Effects intensity" master multiplier — the audio sliders use
-## _add_slider, which is bound to a volume channel).
-func _add_intensity_slider(
-	tab: VBoxContainer, title: String, value: float, on_changed: Callable, desc: String
-) -> void:
-	var s := HSlider.new()
-	s.min_value = 0.0
-	s.max_value = 1.0
-	s.step = 0.01
-	s.value = value
-	s.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	s.size_flags_vertical = Control.SIZE_SHRINK_CENTER
-
-	var pct := Label.new()
-	pct.add_theme_font_size_override("font_size", TITLE_FONT)
-	pct.custom_minimum_size = Vector2(VALUE_WIDTH, 0)
-	pct.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
-	pct.text = _percent(s.value)
-
-	s.value_changed.connect(
-		func(v: float) -> void:
-			on_changed.call(v)
-			pct.text = _percent(v)
-	)
-
-	var box := HBoxContainer.new()
-	box.add_theme_constant_override("separation", 12)
-	box.add_child(s)
-	box.add_child(pct)
-	_add_row(tab, title, box, desc)
 
 
 func _add_slider(tab: VBoxContainer, title: String, channel: StringName, desc: String) -> void:

@@ -1,18 +1,17 @@
-[gd_resource type="Resource" script_class="LevelResource" format=3]
+[gd_resource type="Resource" script_class="LevelResource" load_steps=2 format=3]
 
-[ext_resource type="Script" path="res://scripts/core/level_resource.gd" id="1_dld0a"]
+[ext_resource type="Script" path="res://scripts/core/level_resource.gd" id="1_lvl"]
 
 [resource]
-script = ExtResource("1_dld0a")
+script = ExtResource("1_lvl")
 id = 10
-title = "Mismarked Grave"
-lore_fragment = "The ledger named this grave wrong. Whatever lies in it has been angry a long time."
-width = 10
-danger_row = 13
-layout = PackedStringArray("01*3012*30", "X230123X01", "012301230X", "..........", "..........", "..........", "..........", "..........", "..........", "..........", "..........", "..........", "..........")
-objective_type = 2
-objective_color = 3
-abyss_color_a = Color(0.14, 0.04, 0.05, 1)
-abyss_color_b = Color(0.08, 0.05, 0.04, 1)
-ember_color = Color(1, 0.55, 0.3, 1)
-fog_color = Color(0.04, 0.02, 0.025, 1)
+title = "The Still Heart"
+lore_fragment = "Still the heart of the Cloister, then climb. The Choirmistress keeps the deep."
+width = 18
+num_colors = 6
+danger_row = 16
+abyss_color_a = Color(0.13, 0.04, 0.16, 1)
+abyss_color_b = Color(0.05, 0.04, 0.12, 1)
+ember_color = Color(0.9, 0.5, 1, 1)
+fog_color = Color(0.035, 0.02, 0.05, 1)
+layout = PackedStringArray("012345012345012345", "123450123450123450", "23X45123X45123X451", "345012345012345012", "45X123450X234501X3", "501234501234501234", "0X2345012X45012X45", "123450123450123450", "2345X12345X12345X1", "..3X5012345012X45.", "..................", "..................", "..................", "..................", "..................", "..................")

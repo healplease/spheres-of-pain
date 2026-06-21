@@ -10,52 +10,18 @@ extends Node3D
 const SPHERE_RADIUS := 0.46
 const FRAME_THICK := 0.3  # frame bar cross-section (metres)
 const FRAME_DEPTH := 0.6  # frame bar depth toward the camera (metres)
-# The logical play geometry (field centre, top wall, muzzle + miss-exit gaps) is derived from
-# the field size by the pure, unit-tested BoardGeometry helper. Camera framing margins +
-# backdrop offset live in StageView, which owns the camera.
+const FIELD_CENTER_X := 640.0  # logical x the field + muzzle are centred on
+const TOP_Y := 80.0  # logical y of the row-0 sphere centres
+# Camera framing margins + backdrop offset live in StageView, which owns the camera.
+# Vertical stack below the danger (lose) line, in row-steps: the gun sits this far
+# below the line, then the red miss-exit bar sits this far below the gun. A smaller
+# MUZZLE_GAP lifts the whole gun+bar unit toward the field, so they sit closer to
+# the spheres at the moment those reach the line and consume them.
+const MUZZLE_GAP_ROWS := 0.3  # gun below the danger line (was 0.6 — hand-tuned 690)
+const EXIT_GAP_ROWS := 0.6  # red miss-exit bar below the gun
 
 # Sentinel for _update_heartbeat's optional rows_left arg (see the danger section below).
 const ROWS_TO_DANGER_UNSET := 0x7fffffff  # "not supplied" sentinel for _update_heartbeat
-
-# Camera-shake trauma tiers (E2.2), fed to StageView.add_trauma (which squares trauma and
-# scales by the Effects-Intensity slider). A dud lands with a thud; a pop scales with how
-# many souls it freed, from a small twitch up to a catastrophe slam.
-const FIRE_TRAUMA := 0.13  # tiny pitch-kick every shot — restraint, near-subliminal
-const LAND_TRAUMA := 0.15  # a non-popping landing still thuds
-const CLEAR_TRAUMA_BASE := 0.22  # floor a 3-match pop starts from
-const CLEAR_TRAUMA_PER := 0.04  # added per freed sphere (matched + orphaned)
-const CLEAR_TRAUMA_MIN := 0.30  # any pop registers at least this much
-const CLEAR_TRAUMA_MAX := 0.95  # a catastrophe clear, capped shy of full trauma
-
-# Big-clear crescendo (E2.4): a clear this large briefly drags time + all audio pitch down
-# together, then eases back — the peak of the "build → peak → aftermath" sequence.
-const BIG_CLEAR_AT := 20  # freed spheres at/above which the slow-mo fires
-# Inward screen-pulse (E2.8): a medium-or-bigger clear throbs the dark inward, strength rising
-# with magnitude. Lower threshold than the slow-mo so medium clears still register a throb.
-const PULSE_CLEAR_AT := 6
-const PULSE_STRENGTH_BASE := 0.22
-const PULSE_STRENGTH_PER := 0.03
-const PULSE_STRENGTH_MAX := 0.85
-const SLOWMO_SCALE := 0.35  # how far the clock dips at the peak
-const SLOWMO_HOLD := 0.12  # seconds held at the dip (real time)
-const SLOWMO_RECOVER := 0.34  # seconds easing back to full speed (real time)
-
-# End-state easing (E2.7). Win = relief: the gothic grading eases a few % toward calm.
-# Lose = payoff: the vignette closes in (DangerView), the board drains toward grey, and a
-# black fill wells up behind the verdict (which sits on the Ui layer above the Dread fill).
-const WIN_SATURATION := 0.95
-const WIN_CONTRAST := 1.0
-const WIN_EASE_TIME := 1.6
-const LOSE_BLACK_ALPHA := 0.72
-const LOSE_SATURATION := 0.15
-const LOSE_FADE_TIME := 1.4
-const LOSE_DEAD_AIR := 0.15  # silence after the heartbeats stop before the defeat sting lands
-
-# The grimdark veil shown while the field is built, and how many spheres to spawn per frame
-# behind it. ~100/frame keeps each build frame a few ms even on weak machines while still
-# finishing a full 2500-sphere board in well under a second.
-const LOADING_OVERLAY_SCENE := preload("res://scenes/loading_overlay.tscn")
-const BUILD_CHUNK := 100
 
 # The intro/end overlay (banner, lore, choice panel, fades) lives in CenterBanner; the danger
 # heartbeat/visuals live in DangerView; the narrator's bark cadence lives in NarratorDirector.
@@ -83,11 +49,7 @@ var game_over := false
 
 var _s := 1.0 / 56.0  # metres per logical pixel = 1/diameter; set in _ready
 var _play_bottom := 720.0  # logical miss-exit line (below the muzzle)
-var _geom: BoardGeometry.Layout  # the derived play geometry; set in _layout_field
 var _level: LevelResource = null  # null = free play (random board)
-# Cells the objective watches ('@'/'*'), cached from the level in _ready; empty for CLEAR / free
-# play. The win check (objective_met) waits for all of these to empty out.
-var _objective_cells: Array[Vector2i] = []
 var _bag := ShotBag.new()  # decides the gun's next colour (true-random or bag mode)
 var _mesh: SphereMesh
 var _mats: Array[StandardMaterial3D] = []
@@ -103,10 +65,6 @@ var _shots_fired := 0  # HUD counter; bumped on every shot
 # Cumulative souls unmade this level (matched pops + the orphans they sweep). Diegetically
 # "souls freed"; fuels the grim end-screen epitaph. Never reset mid-level.
 var _souls_freed := 0
-# Skill score for this level: matched pops modestly, the isolation sweep super-linearly, plus
-# an all-clear + economy bonus at the end (see Scoring). Never shown as a raw arcade number —
-# it resolves into one verdict word at the end ("how cleanly you ended the suffering").
-var _score := 0
 # The danger subsystem (heartbeat audio + line/vignette shaders) lives in DangerView.
 # _build_frame creates the bottom-bar material into _danger_line_mat; _ready hands it
 # and the vignette material to the view, then set_tier() is driven via _update_heartbeat.
@@ -114,12 +72,7 @@ var _danger_view: DangerView
 var _danger_line_mat: ShaderMaterial  # the bottom miss-exit bar (danger_line.gdshader)
 var _center_banner: CenterBanner  # owns the intro/end overlay + its fades
 var _stage_view: StageView  # owns the camera, backdrop, embers, environment
-var _pop_burst: PopBurst  # pooled cluster-death particle bursts (embers/ash/shards/wisps)
 var _narrator: NarratorDirector  # owns the narrator subtitle + when it speaks
-# True while the field is being built behind the loading veil — gates firing so a click
-# during load can't shoot into a half-built board. The veil itself lives here only while up.
-var _loading := false
-var _loading_overlay: LoadingOverlay
 
 @onready var world_env: WorldEnvironment = $WorldEnvironment
 @onready var light: DirectionalLight3D = $DirectionalLight3D
@@ -172,9 +125,6 @@ func _ready() -> void:
 		rows = _level.rows()
 		num_colors = _level.num_colors
 		danger_row = _level.danger_row
-		# The objective cells ('@'/'*') are level metadata, not model state — cache the
-		# coordinates once so the verdict check can watch them empty out (empty for CLEAR).
-		_objective_cells = _level.objective_cells()
 		_layout_field()
 	else:
 		_pick_field_dimensions()
@@ -191,13 +141,11 @@ func _ready() -> void:
 	sim.diameter = diameter
 	sim.columns = columns
 	sim.origin = origin2d
-	sim.play_left = _geom.play_left
-	sim.play_right = _geom.play_right
-	sim.play_bottom = _geom.play_bottom
+	sim.play_left = origin2d.x - diameter * 0.5
+	sim.play_right = origin2d.x + (columns - 1) * diameter + diameter
+	sim.play_bottom = _play_bottom
 
-	# Configure the board but defer the sphere spawning to build_async (run behind the loading
-	# veil below), so a large field never freezes the window on entry.
-	board.setup(model, _mesh, _mats, _specials, diameter, false)
+	board.setup(model, _mesh, _mats, _specials, diameter)
 
 	shooter.position = to3d(muzzle2d)
 	# Configure the colour source before the first draw: true-random or the fair bag,
@@ -238,10 +186,6 @@ func _ready() -> void:
 	_build_frame()
 	_stage_view.frame(_frame_bounds(FRAME_THICK))  # outer edge of the frame
 	_stage_view.fit_embers(_frame_bounds(0.0))
-	# Pooled cluster-death bursts, fired at the impact cell from _on_landed. A sibling of
-	# the board (both at world origin), so a cell's board-local position is its world pos.
-	_pop_burst = PopBurst.new()
-	add_child(_pop_burst)
 	# Seed an initial aim + trajectory now that the camera is framed, so the gun can
 	# fire and the ray can show before the first _process frame. Afterwards we only
 	# re-simulate when the aim or board changes (see _aim_dirty / _input / _on_landed).
@@ -271,9 +215,7 @@ func _ready() -> void:
 	# Narrator autoload). The director seeds its cooldown + danger tier from the opening board.
 	var narrator_view := NarratorView.new()
 	narrator_view.setup(narrator_line, narrator_bg)
-	var region_id := (
-		GameState.region_id_for_node(GameState.selected_index) if _level != null else -1
-	)
+	var region_id := GameState.region_id_for_level(_level.id) if _level != null else -1
 	_narrator = NarratorDirector.new()
 	add_child(_narrator)
 	_narrator.setup(narrator_view, region_id, model.rows_to_danger())
@@ -307,77 +249,10 @@ func _ready() -> void:
 		)
 	)
 
-	# Build the field behind a loading veil. The veil (level title + lore + a progress bar)
-	# doubles as the intro, so the CenterBanner intro is no longer shown here; the spheres are
-	# spawned in time-sliced chunks so even a large board never freezes the window, and the
-	# shaders are pre-warmed first so the first frame of play (and the first shot) don't hitch.
-	_loading = true
-	shooter.enabled = false
-	_loading_overlay = LOADING_OVERLAY_SCENE.instantiate()
-	add_child(_loading_overlay)
-	_loading_overlay.begin(
-		_level.title if _level != null else "THE PIT",
-		_level.lore_fragment if _level != null else ""
-	)
-	_build_field_async()  # coroutine: prewarm -> chunked spawn -> reveal -> hand off to play
-
-
-## Coroutine started at the end of _ready: pre-warm the shaders, spawn the field in chunks
-## (driving the loading bar), then reveal the board and return control to the player. Runs
-## entirely on the main thread — the work is time-sliced across frames, not threaded, because
-## node creation isn't thread-safe.
-func _build_field_async() -> void:
-	var tree := get_tree()
-	await tree.process_frame  # let the opaque veil paint before any heavy (masked) work
-	await _prewarm_shaders()
-	await board.build_async(BUILD_CHUNK, _on_build_progress)
-	if not is_inside_tree():
-		return  # left the level mid-build
-	_loading = false
-	if not game_over:
-		shooter.enabled = true
-	await _loading_overlay.dismiss()
-	_loading_overlay = null
-	if not is_inside_tree():
-		return
-	# The voice and (dev) autoplay only start once the board is revealed and play has begun.
 	if _level != null:
+		_center_banner.show_intro(_level.title, _level.lore_fragment)
 		_narrator.say_descent_after_intro()
-	_maybe_start_autoplay()
 
-
-func _on_build_progress(done: int, total: int) -> void:
-	if _loading_overlay != null:
-		_loading_overlay.set_progress(float(done) / float(maxi(total, 1)))
-
-
-## Compile the pipelines for the materials that otherwise first appear during gameplay — the
-## sphere material, the obsidian/spin/bounce obstacle shaders and the aim-ray preview — by
-## drawing each once on a throwaway mesh in front of the camera, hidden behind the opaque
-## veil. The frame/backdrop/HUD shaders already draw on frame 1 (also behind the veil), so
-## they compile for free. Front-loading every compile here keeps both the chunked build and
-## the first shot smooth. Best-effort: Forward+ compiles a pipeline when its draw is first
-## submitted, so two frames give it time to land before the veil lifts.
-func _prewarm_shaders() -> void:
-	var mats: Array[Material] = [_mats[0], _preview_mat]
-	mats.append_array(_specials.values())
-	var holder := Node3D.new()
-	holder.name = "ShaderPrewarm"
-	add_child(holder)
-	var base := camera.global_transform.origin - camera.global_transform.basis.z
-	for i in mats.size():
-		var mi := MeshInstance3D.new()
-		mi.mesh = _mesh
-		mi.material_override = mats[i]
-		mi.scale = Vector3.ONE * 0.1  # tiny; it's hidden by the veil anyway, just needs to draw
-		mi.position = base + Vector3(float(i) * 0.05, 0.0, 0.0)
-		holder.add_child(mi)
-	await get_tree().process_frame
-	await get_tree().process_frame
-	holder.queue_free()
-
-
-func _maybe_start_autoplay() -> void:
 	if OS.has_environment("SOP_AUTOPLAY"):
 		var t := Timer.new()
 		t.wait_time = 0.6
@@ -446,10 +321,6 @@ func _build_frame() -> void:
 ## the dread pulses instantly — they belong to this level, not the menus.
 func _exit_tree() -> void:
 	Sound.stop_heartbeats()
-	# Safety: if we leave mid-crescendo, restore real time so the menus / next level don't
-	# inherit a dragged-down clock or pitch (the slow-mo tween dies with this node).
-	Engine.time_scale = 1.0
-	AudioServer.playback_speed_scale = 1.0
 
 
 func _input(event: InputEvent) -> void:
@@ -480,15 +351,18 @@ func _pick_field_dimensions() -> void:
 	_layout_field()
 
 
-## Derive every logical coordinate from `columns` / `danger_row` (set either by the random
-## roll above or by an authored level) via the shared BoardGeometry helper: the board origin
-## (field centred), the muzzle below the danger line, the bottom miss-exit line, and the
-## bounce bounds. Cached in `_geom` so the sim config below reads the identical values.
+## Derive every logical coordinate from `columns` / `danger_row` (set either by
+## the random roll above or by an authored level): the board origin (field
+## centred on FIELD_CENTER_X), the muzzle MUZZLE_GAP_ROWS below the danger line,
+## and the bottom miss-exit line EXIT_GAP_ROWS below the muzzle.
 func _layout_field() -> void:
-	_geom = BoardGeometry.compute(columns, danger_row, diameter)
-	origin2d = _geom.origin2d
-	muzzle2d = _geom.muzzle2d
-	_play_bottom = _geom.play_bottom
+	var row_step := diameter * Hex.ROW_RATIO
+	# Centre the field horizontally: with this origin, (play_left + play_right) / 2
+	# lands on FIELD_CENTER_X regardless of column count.
+	origin2d = Vector2(FIELD_CENTER_X - diameter * (columns * 0.5 - 0.25), TOP_Y)
+	var danger_y := origin2d.y + danger_row * row_step
+	muzzle2d = Vector2(FIELD_CENTER_X, danger_y + row_step * MUZZLE_GAP_ROWS)
+	_play_bottom = muzzle2d.y + row_step * EXIT_GAP_ROWS
 
 
 ## Procedurally fill the field: every cell in the first `rows` rows takes a random
@@ -520,7 +394,7 @@ func _mat_for(color: int) -> Material:
 ## already aimed this frame, so it's a no-op. Autoplay passes false — it sets its own
 ## canned aim and must not have it clobbered by the (absent) mouse.
 func _on_fired(reaim := true) -> void:
-	if _loading or game_over or not _last_sim.has("path"):
+	if game_over or not _last_sim.has("path"):
 		return
 	if reaim:
 		_aim_view.update_aim()
@@ -543,7 +417,6 @@ func _on_fired(reaim := true) -> void:
 	_shots_fired += 1
 	_update_status()  # the shots tally ticks the moment the gun fires
 	shooter.enabled = false
-	_stage_view.add_trauma(FIRE_TRAUMA)  # a small kick as the orb leaves the muzzle
 	var proj := Projectile3D.new()
 	proj.setup(_mesh, _mat_for(shooter.current_color))
 	var p3d: Array[Vector3] = []
@@ -568,29 +441,14 @@ func _on_fired(reaim := true) -> void:
 func _on_landed(cell: Vector2i, color: int) -> void:
 	var res := model.attach(cell, color)
 	if res.did_pop:
-		var freed := res.popped.size() + res.orphaned.size()
 		# One cluster-sized pop burst, not one sound per sphere — keeps big clears
 		# (the matched group plus any spheres it orphans) from turning to noise.
-		Sound.play_cluster_pop(freed)
+		Sound.play_cluster_pop(res.popped.size() + res.orphaned.size())
 		# Every removed sphere is a soul let go of the wall — tally them for the epitaph.
-		_souls_freed += freed
-		# Score the shot: the matched cluster modestly, the isolation sweep super-linearly.
-		_score += Scoring.shot_score(res.popped.size(), res.orphaned.size())
+		_souls_freed += res.popped.size() + res.orphaned.size()
 		_narrator.narrate_clear(res.popped.size(), res.orphaned.size())
-		# The board lurches in proportion to how much it just lost, and throws ash, embers,
-		# bone shards and a few rising soul-wisps out of the impact cell.
-		_stage_view.add_trauma(_clear_trauma(freed))
-		_pop_burst.fire(board.cell_local(cell), freed)
-		if freed >= PULSE_CLEAR_AT:
-			_danger_view.pulse(
-				clampf(PULSE_STRENGTH_BASE + freed * PULSE_STRENGTH_PER, 0.30, PULSE_STRENGTH_MAX)
-			)
-		if freed >= BIG_CLEAR_AT:
-			_crescendo_slowmo()  # a big chain drags the whole moment down
-			Sound.play_drone(clampf(float(freed) / 24.0, 0.4, 1.0))  # the sub-bass swell
 	else:
 		model.grow()
-		_stage_view.add_trauma(LAND_TRAUMA)  # a dud still lands with a thud
 	# On a pop, ripple the clear outward from the impact cell; on a dud the grown
 	# spheres just animate in (no removals, so pop_origin is irrelevant).
 	var settle := board.sync([cell], cell)  # the landed sphere appears full-size
@@ -609,10 +467,6 @@ func _on_landed(cell: Vector2i, color: int) -> void:
 		await get_tree().create_timer(spin_settle).timeout
 		if not is_inside_tree() or game_over:
 			return
-	# The tide (if any) drops the whole field one shot deeper — after the spin settles, before
-	# the verdict is read, so a drop that crosses the line is reckoned with this same turn.
-	if await _apply_tide():
-		return  # left the level mid-descent
 	_validate_load()
 	# Board is now in its final post-resolution state; scan it once and share the
 	# counts with the log, the HUD, and the heartbeat instead of rescanning thrice.
@@ -640,10 +494,10 @@ func _on_landed(cell: Vector2i, color: int) -> void:
 	# a grow may have closed on the line; a pop may have backed off it
 	_update_heartbeat(model.danger_row - deepest)
 	_narrator.narrate_danger(model.danger_row - deepest)
-	# Hold the verdict a beat so the final state reads before the banner. Pop/grow, spin and
-	# the tide have already settled above; any of them can end the level (the spin or the tide
-	# can push a sphere across the line), so the verdict is read here, after them all.
-	if _is_objective_met() or _is_failed():
+	# Hold the verdict a beat so the final state reads before the banner. Pop/grow and
+	# spin have already settled above; the spin can push a sphere across the line, so
+	# the verdict is read here, after it.
+	if model.is_won() or model.is_lost():
 		await get_tree().create_timer(0.25).timeout
 		if not is_inside_tree() or game_over:
 			return
@@ -653,103 +507,14 @@ func _on_landed(cell: Vector2i, color: int) -> void:
 	shooter.enabled = true
 
 
-## Map a clear's magnitude (matched + orphaned spheres) to a camera-shake trauma value:
-## any pop registers at least CLEAR_TRAUMA_MIN, growing per freed sphere up to a capped
-## catastrophe slam. StageView squares this and scales it by the Effects-Intensity slider.
-func _clear_trauma(freed: int) -> float:
-	return clampf(CLEAR_TRAUMA_BASE + freed * CLEAR_TRAUMA_PER, CLEAR_TRAUMA_MIN, CLEAR_TRAUMA_MAX)
-
-
-## A big clear briefly drags the whole world down: the clock and all audio pitch dip
-## together (AudioServer.playback_speed_scale transposes everything downward for free), then
-## ease back. Gated on the Effects-Intensity slider — the dip is shallower as it lowers, and
-## absent at 0. The restore tween ignores time_scale (or it would crawl and never finish);
-## _exit_tree resets the globals if the level is torn down mid-dip.
-func _crescendo_slowmo() -> void:
-	var fx := Settings.fx_intensity()
-	if fx <= 0.0:
-		return
-	var dip := lerpf(1.0, SLOWMO_SCALE, fx)
-	_set_time_scale(dip)
-	var tw := create_tween().set_ignore_time_scale(true)
-	tw.tween_interval(SLOWMO_HOLD)
-	tw.tween_method(_set_time_scale, dip, 1.0, SLOWMO_RECOVER)
-
-
-func _set_time_scale(s: float) -> void:
-	Engine.time_scale = s
-	AudioServer.playback_speed_scale = s
-
-
-## Win = relief, not fanfare: heartbeats have already stopped and the vignette recedes; ease
-## the drained gothic grading a few % toward calm — "a held breath let out in a cold room".
-func _ease_env_calm() -> void:
-	var env := world_env.environment
-	if env == null:
-		return
-	var tw := create_tween().set_parallel(true)
-	tw.tween_property(env, "adjustment_saturation", WIN_SATURATION, WIN_EASE_TIME)
-	tw.tween_property(env, "adjustment_contrast", WIN_CONTRAST, WIN_EASE_TIME)
-
-
-## Lose = payoff: the red injury vignette closes inward (DangerView.close_out), the board
-## drains toward grey, and black wells up behind the verdict. The black fill sits at the back
-## of the Dread layer so the closing red stays vivid on top of it, and the verdict + choices
-## (Ui layer, above Dread) stay legible — a loss must always show the player the fatal board.
-func _close_out_lose() -> void:
-	_danger_view.close_out()
-	# Heartbeats were hard-stopped in _end; leave a beat of dead air, then the sub-bass sting
-	# lands into the silence (E2.7). A timer, not an await, so it can't block the end flow.
-	get_tree().create_timer(LOSE_DEAD_AIR).timeout.connect(Sound.play_lose_sting)
-	var dread := $Dread as CanvasLayer
-	var black := ColorRect.new()
-	black.color = Color(0.0, 0.0, 0.0, 0.0)
-	black.set_anchors_preset(Control.PRESET_FULL_RECT)
-	black.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	dread.add_child(black)
-	dread.move_child(black, 0)  # behind the grain overlay + the closing red vignette
-	var tw := create_tween().set_parallel(true)
-	tw.tween_property(black, "color:a", LOSE_BLACK_ALPHA, LOSE_FADE_TIME)
-	var env := world_env.environment
-	if env != null:
-		tw.tween_property(env, "adjustment_saturation", LOSE_SATURATION, LOSE_FADE_TIME)
-
-
 func _on_missed() -> void:
 	Log.debug(Log.SHOT, "miss reshuffle", {"colored": model.count_colored()})
 	model.randomize_colors()
 	board.sync()  # reshuffle only recolours; spheres stay, materials swap in place
-	# Every shot drops the tide, a miss included — it can push the field across the line.
-	if await _apply_tide():
-		return  # left the level mid-descent
 	_validate_load()
+	shooter.enabled = true
 	_update_status()
 	_update_heartbeat()
-	# A miss can lose the level (the tide crossing the line, or the last shot of a spent budget)
-	# but never win it — nothing was cleared. Read the verdict before re-arming the gun.
-	if _is_failed() or _is_objective_met():
-		await get_tree().create_timer(0.25).timeout
-		if not is_inside_tree() or game_over:
-			return
-		_check_end()
-		return
-	shooter.enabled = true
-
-
-## Drop the dark tide one shot deeper, if this level has one. Runs after the spin settles and
-## before the verdict, so a drop that pushes the field across the line loses THIS turn. Returns
-## true if the level was torn down mid-descent (the caller must then stop touching the tree).
-func _apply_tide() -> bool:
-	if _level == null or _level.tide_rows_per_shot <= 0:
-		return false
-	var moves := model.descend(_level.tide_rows_per_shot)
-	var settle := board.animate_descend(moves)
-	if settle > 0.0:
-		Log.debug(Log.MODEL, "tide", {"rows": _level.tide_rows_per_shot, "moves": moves.size()})
-		await get_tree().create_timer(settle).timeout
-		if not is_inside_tree() or game_over:
-			return true
-	return false
 
 
 ## The slots were already advanced at fire time, but the shot that just resolved
@@ -786,60 +551,18 @@ func _update_heartbeat(rows_left: int = ROWS_TO_DANGER_UNSET) -> void:
 # --- end state ----------------------------------------------------------------
 
 
-## True when the level's victory condition is satisfied — delegates to the level's pure
-## objective_met predicate, so the win rule has one home. Free play has no level, so it clears
-## the board the old way.
-func _is_objective_met() -> bool:
-	if _level == null:
-		return model.is_won()
-	return _level.objective_met(model, _objective_cells)
-
-
-## True when the level is lost: a sphere crossed the danger line, OR a Sniper shot-budget ran out
-## before the objective was met. The objective is re-checked here so a winning final shot (which
-## also spends the last of the budget) is never read as a failure — met always beats failed.
-func _is_failed() -> bool:
-	if model.is_lost():
-		return true
-	if _level != null and _level.shot_budget > 0:
-		return _shots_fired >= _level.shot_budget and not _is_objective_met()
-	return false
-
-
-## The win banner per objective — short enough for the title font; the epitaph carries the
-## grave-courtesy + souls tally beneath it.
-func _win_verdict() -> String:
-	if _level != null:
-		match _level.objective_type:
-			LevelResource.Objective.FREE_SOUL:
-				return "THE CAGE IS OPEN.\nIt does not look back."
-			LevelResource.Objective.CLEANSE:
-				return "THE MARK IS LIFTED.\nThe stain remains in you."
-	return "THE WALL IS QUIET.\nYou are not in it."
-
-
-## The lose banner: a spent Sniper budget reads differently from being dragged under the line.
-func _lose_verdict() -> String:
-	if not model.is_lost() and _level != null and _level.shot_budget > 0:
-		return "YOUR HANDS ARE EMPTY.\nThe work undone."
-	return "THE DEAD RECLAIM YOU."
-
-
 func _check_end() -> void:
 	# Verdicts speak the fiction (§2.10): short lines to fit the banner; the grave-courtesy +
-	# souls tally ride the epitaph beneath. Met is checked first so it always beats failed.
-	if _is_objective_met():
-		_end(_win_verdict(), true)
-	elif _is_failed():
-		_end(_lose_verdict(), false)
+	# souls tally ride the epitaph beneath. See docs/architecture/level-flow.md.
+	if model.is_won():
+		_end("THE WALL IS QUIET.\nYou are not in it.", true)
+	elif model.is_lost():
+		_end("THE DEAD RECLAIM YOU.", false)
 
 
 func _end(msg: String, won: bool) -> void:
 	game_over = true
 	_narrator.mark_ended()  # a pending descent/danger bark must not speak past the verdict
-	# A win banks the marquee all-clear bonus plus any shots spared under par (the economy).
-	if won:
-		_score += Scoring.all_clear_bonus() + Scoring.economy_bonus(_par_shots(), _shots_fired)
 	(
 		Log
 		. info(
@@ -850,56 +573,40 @@ func _end(msg: String, won: bool) -> void:
 				"shots": _shots_fired,
 				"colored": model.count_colored(),
 				"max_row": model.max_row(),
-				"souls": _souls_freed,
-				"score": _score,
 			}
 		)
 	)
 	shooter.enabled = false
 	_update_heartbeat()  # game_over now true -> both pulses fade out (cleared or consumed)
 	_aim_view.hide_ray()  # cut the ray at once, even if a finger is still down (Hold)
-	# Win eases the room toward calm; a loss lets the dark close in over the fatal board.
-	if won:
-		_ease_env_calm()
-	else:
-		_close_out_lose()
 	if won and _level != null:
-		GameState.complete_current(_score, Scoring.tier(_par_shots(), _shots_fired))
-	# Beating the final region's boss ends the whole descent: hold the verdict a beat, let
+		GameState.complete_current()
+	# Beating the final campaign level ends the whole descent: hold the verdict a beat, let
 	# the voice land, then move to the epilogue (its own scene) instead of the ordinary end
 	# panel. Esc still skips out to the hub during the pause.
-	if won and GameState.is_final_boss(GameState.selected_index):
+	if won and GameState.selected_index == GameState.LEVEL_COUNT:
 		_center_banner.show_end(msg, true, false, false, _epitaph(true))
 		_narrator.say("victory", true)
 		await get_tree().create_timer(3.5).timeout
 		if is_inside_tree():
 			GameState.go_to_epilogue()
 		return
-	# The visual verdict + choice panel are the CenterBanner's job; we just decide which choices
-	# apply. The descent branches, so there is no single "next" — a win returns to the world map
-	# (the menu button) to pick the next path. Retry is offered on any authored level (win or loss:
-	# replay to better the score/tier, or try again after a fall); free play has neither.
-	var show_next := false
-	var show_retry := _level != null
+	# The visual verdict + choice panel are the CenterBanner's job; we just decide
+	# which choices apply (next only on an authored win with a level after it; retry
+	# only on an authored loss — free play has neither).
+	var show_next := won and _level != null and GameState.has_next()
+	var show_retry := not won and _level != null
 	_center_banner.show_end(msg, won, show_next, show_retry, _epitaph(won))
 	# The voice has the last word, on the HUD beneath the verdict (it interrupts any
 	# clear/danger bark from the final shot). Forced — the end of a level always speaks.
 	_narrator.say("victory" if won else "defeat", true)
 
 
-## The level's shot budget for the efficiency tiers, or 0 (unset) for free play / a level that
-## never set par — Scoring then reads the neutral FREED tier and grants no economy bonus.
-func _par_shots() -> int:
-	return _level.par_shots if _level != null else 0
-
-
-## A one-breath tally beneath the verdict — the fiction's "grim epitaph", not a score. On a win
-## it opens with the efficiency tier word (how cleanly the suffering ended); a loss carries no
-## tier (you did not clear). Carries the grave-courtesy the title-size verdict has no room for.
+## A one-breath souls-freed tally beneath the verdict — the fiction's "grim epitaph", not
+## a score. Carries the longer grave-courtesy the title-size verdict has no room for.
 func _epitaph(won: bool) -> String:
 	if won:
-		var t := Scoring.tier(_par_shots(), _shots_fired)
-		return "%s. %d freed. Not one thanked you." % [Scoring.tier_word(t), _souls_freed]
+		return "%d freed. Not one thanked you." % _souls_freed
 	return "%d freed; and so you join the pattern you came to break." % _souls_freed
 
 
@@ -911,40 +618,7 @@ func _epitaph(won: bool) -> String:
 func _update_status(colored: int = -1) -> void:
 	if colored < 0:
 		colored = model.count_colored()
-	# Souls freed is understated, in fiction — not a flashing arcade score. The goal line names
-	# what this level asks for (spheres / a caged soul / a cursed cell); the shots line shows the
-	# Sniper budget when there is one.
-	counter_label.text = (
-		"%s\n%s\nSouls freed  %d" % [_goal_line(colored), _shots_line(), _souls_freed]
-	)
-
-
-## How many objective cells are still occupied (the FREE_SOUL / CLEANSE remaining count).
-func _objective_remaining() -> int:
-	var n := 0
-	for cell in _objective_cells:
-		if model.is_occupied(cell):
-			n += 1
-	return n
-
-
-## The HUD goal line: the clear target for a CLEAR level, or the remaining tagged cells for an
-## objective level.
-func _goal_line(colored: int) -> String:
-	if _level != null:
-		match _level.objective_type:
-			LevelResource.Objective.FREE_SOUL:
-				return "Caged  %d" % _objective_remaining()
-			LevelResource.Objective.CLEANSE:
-				return "Cursed  %d" % _objective_remaining()
-	return "Spheres  %d" % colored
-
-
-## The HUD shots line: a bare tally, or fired / budget when a Sniper budget caps the level.
-func _shots_line() -> String:
-	if _level != null and _level.shot_budget > 0:
-		return "Shots  %d / %d" % [_shots_fired, _level.shot_budget]
-	return "Shots  %d" % _shots_fired
+	counter_label.text = "Spheres  %d\nShots  %d" % [colored, _shots_fired]
 
 
 # --- dev autoplay -------------------------------------------------------------

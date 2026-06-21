@@ -14,8 +14,6 @@ signal aim_active_changed(active: bool)
 const NEXT_SCALE := 0.6  # the queued sphere is shown smaller, off to the side
 const RELOAD_TIME := 0.16  # next sphere sliding into the muzzle slot
 const APPEAR_TIME := 0.14  # fresh next sphere growing into the side slot
-const RECOIL_KICK := 0.12  # metres the whole gun jolts back (down, away from the field) on fire
-const RECOIL_RETURN := 0.18  # seconds to settle back to rest
 
 ## Whether the gun can fire. Disabled while a shot is in flight; the controller
 ## flips it back on when the shot resolves. In HOLD, a re-enable that lands while
@@ -42,9 +40,6 @@ var _loaded: MeshInstance3D
 var _next: MeshInstance3D
 var _next_home := Vector3.ZERO
 var _reload_tween: Tween
-var _recoil_tween: Tween
-var _rest_pos := Vector3.ZERO
-var _rest_pos_set := false
 
 
 func setup(p_mesh: Mesh, p_mats: Array, radius: float) -> void:
@@ -65,7 +60,6 @@ func setup(p_mesh: Mesh, p_mats: Array, radius: float) -> void:
 ## next sphere into the side slot. Promotes next -> current immediately, so the
 ## gun shows its true colour during the shot's flight.
 func reload(new_next: int) -> void:
-	_recoil()
 	current_color = next_color
 	next_color = new_next
 	_kill_reload()
@@ -117,28 +111,6 @@ func _apply_slots() -> void:
 	_next.material_override = _mats[next_color % _mats.size()]
 	_next.position = _next_home
 	_next.scale = Vector3.ONE * NEXT_SCALE
-
-
-## A small launcher recoil on fire (E2.6): the gun jolts back (down, away from the field) and
-## settles. Scaled by the Effects-Intensity slider, so at 0 it sits perfectly still. Captures
-## its rest position on first use (the controller has placed it by then) and kicks from there.
-func _recoil() -> void:
-	if not _rest_pos_set:
-		_rest_pos = position
-		_rest_pos_set = true
-	var kick := RECOIL_KICK * Settings.fx_intensity()
-	if kick <= 0.0:
-		return
-	if _recoil_tween != null and _recoil_tween.is_valid():
-		_recoil_tween.kill()
-	position = _rest_pos + Vector3(0.0, -kick, 0.0)
-	_recoil_tween = create_tween()
-	(
-		_recoil_tween
-		. tween_property(self, "position", _rest_pos, RECOIL_RETURN)
-		. set_trans(Tween.TRANS_BACK)
-		. set_ease(Tween.EASE_OUT)
-	)
 
 
 func _kill_reload() -> void:

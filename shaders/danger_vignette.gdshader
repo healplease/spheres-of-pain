@@ -9,12 +9,9 @@ shader_type canvas_item;
 
 uniform vec3 danger_color : source_color = vec3(0.62, 0.02, 0.03);
 uniform float intensity : hint_range(0.0, 1.0) = 0.0;   // master fade (0 = invisible)
-uniform float edge : hint_range(0.0, 0.9) = 0.62;       // vignette onset; lower = reaches further in (0 = closes to centre)
+uniform float edge : hint_range(0.2, 0.9) = 0.62;       // vignette onset; lower = reaches further in
 uniform float phase = 0.0;                              // beat phase (rad), shared with the danger line
 uniform float pulse_depth : hint_range(0.0, 1.0) = 0.45; // how much the beat dips the brightness
-// One-shot inward constriction throb on big clears (E2.8), driven (and decayed) from DangerView.
-// Added on top of the tier vignette so it reads even when the field isn't in danger.
-uniform float pulse_burst : hint_range(0.0, 1.0) = 0.0;
 uniform float scale = 3.0;
 uniform float drift = 0.06;
 
@@ -56,14 +53,8 @@ void fragment() {
 	// Heartbeat throb: one sharp thump per beat, biased toward dim.
 	float beat = 0.5 + 0.5 * sin(phase);
 	beat *= beat;
-	float beat_mul = mix(1.0 - pulse_depth, 1.0, beat);
+	float pulse = mix(1.0 - pulse_depth, 1.0, beat);
 
-	float a = vig * smoke * beat_mul * intensity;
-
-	// Big-clear constriction: a vignette reaching much further in (tunnel vision), added on
-	// top so the screen throbs darkly inward even with no standing danger intensity.
-	float burst_vig = smoothstep(0.1, 1.0, d) * pulse_burst;
-	a += burst_vig * smoke;
-
+	float a = vig * smoke * pulse * intensity;
 	COLOR = vec4(danger_color, clamp(a, 0.0, 1.0));
 }

@@ -193,31 +193,6 @@ func randomize_colors() -> void:
 			cells[cell] = rng.randi_range(0, num_colors - 1)
 
 
-## The dark tide drops the whole field `rows` rows deeper (every cell y += rows), pushing the
-## mass toward — and possibly across — the lose line (is_lost() reckons with the new depths).
-## Shot-paced: the controller calls this after each shot, never on a timer. Indestructibles ride
-## down with everything else; empties stay empty. Returns the {from, to, color} moves so the view
-## can glide the existing nodes; a no-op (0 rows / empty board) returns [].
-##
-## USE EVEN `rows`. Odd-r offset rows alternate a half-cell, so a cell's neighbour set depends on
-## row parity (Hex.DIRS[y & 1]). An EVEN shift preserves parity — a rigid translation that keeps
-## every cluster/orphan relationship intact. An ODD shift flips parity and silently re-wires
-## adjacency, so match_group/find_orphans would resolve against a different board than the player
-## sees. The method honours any value (a designer may want a brutal "scramble tide"), but levels
-## should author even drops.
-func descend(rows: int) -> Array[Dictionary]:
-	if rows <= 0:
-		return []
-	var moves: Array[Dictionary] = []
-	var shifted := {}  # rebuild into a fresh dict so a deeper cell can't clobber a shallower one
-	for cell in cells:
-		var dest := Vector2i(cell.x, cell.y + rows)
-		shifted[dest] = cells[cell]
-		moves.append({"from": cell, "to": dest, "color": cells[cell]})
-	cells = shifted
-	return moves
-
-
 ## Rotate every SPIN sphere's ring of breakable/empty "track" neighbours one slot
 ## counter-clockwise (spheres physically move; the ring compacts over indestructibles/walls).
 ## Spins resolve one at a time in reading order, each ring read fully before it writes; returns

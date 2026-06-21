@@ -1,18 +1,13 @@
-[gd_resource type="Resource" script_class="RegionResource" format=3]
+[gd_resource type="Resource" script_class="RegionResource" load_steps=2 format=3]
 
-[ext_resource type="Script" path="res://scripts/core/region_resource.gd" id="1_dpkkx"]
+[ext_resource type="Script" path="res://scripts/core/region_resource.gd" id="1_reg"]
 
 [resource]
-script = ExtResource("1_dpkkx")
+script = ExtResource("1_reg")
 id = 1
 title = "The Drowned Cloister"
-framing_line = "Black water over old stone. The hymns never finished; they only sank."
+first_level = 6
+last_level = 10
+framing_line = "Where the pit floods, and a drowned order still keeps its dead."
 boss_name = "The Choirmistress"
-entry_node_id = 11
-boss_node_id = 15
-node_ids = PackedInt32Array(11, 12, 13, 14, 15, 16, 17, 18, 19, 20)
-map_center = Vector2(490, 1500)
-map_bounds = Rect2(80, 980, 820, 1040)
-accent = Color(0.4, 0.62, 0.74, 1)
-fog_color = Color(0.02, 0.03, 0.045, 1)
-ember_color = Color(0.45, 0.72, 0.92, 1)
+accent = Color(0.4, 0.62, 0.82, 1)

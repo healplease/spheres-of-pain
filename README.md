@@ -131,11 +131,11 @@ gdlint .                    # lint only
 ## Project layout
 
 ```
-scripts/core/      Pure game logic (RefCounted, Log-free) — GridModel, ShotSimulator, Hex, WorldGraph
-scripts/play3d/    3D node behavior (board view, level controller, shooter, projectile, world map)
+scripts/core/      Pure game logic (RefCounted, Log-free) — GridModel, ShotSimulator, Hex
+scripts/play3d/    3D node behavior (board view, level controller, shooter, projectile)
 scripts/           Autoloads — log.gd, game_state.gd, sound_manager.gd, settings.gd
-scenes/            main_menu, world_map, settings, level_3d, ui/
-levels/            Level data (.tres); world/ holds the branching world graph; regions/ the regions
+scenes/            main_menu, level_select, settings, level_3d, ui/
+levels/            Level data (.tres)
 tests/             GUT unit tests (test_*.gd)
 art/ audio/ shaders/ themes/   Assets
 addons/            Third-party plugins (gitignored — see setup above)

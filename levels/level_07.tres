@@ -1,18 +1,17 @@
-[gd_resource type="Resource" script_class="LevelResource" format=3]
+[gd_resource type="Resource" script_class="LevelResource" load_steps=2 format=3]
 
-[ext_resource type="Script" path="res://scripts/core/level_resource.gd" id="1_siyii"]
+[ext_resource type="Script" path="res://scripts/core/level_resource.gd" id="1_lvl"]
 
 [resource]
-script = ExtResource("1_siyii")
+script = ExtResource("1_lvl")
 id = 7
-title = "A Child's Cairn"
-lore_fragment = "Small stones, stacked with care no one came back for. Something waits inside to be let out."
-width = 10
-danger_row = 14
-layout = PackedStringArray("01@3012X30", "3012@01230", "X230123X01", "0123012301", "..........", "..........", "..........", "..........", "..........", "..........", "..........", "..........", "..........", "..........")
-objective_type = 1
-objective_color = 2
-abyss_color_a = Color(0.14, 0.04, 0.05, 1)
-abyss_color_b = Color(0.08, 0.05, 0.04, 1)
-ember_color = Color(1, 0.55, 0.3, 1)
-fog_color = Color(0.04, 0.02, 0.025, 1)
+title = "The Drowned Bell"
+lore_fragment = "A bell tolls under the water. Each toll is a name you came to unmake."
+width = 14
+num_colors = 5
+danger_row = 16
+abyss_color_a = Color(0.03, 0.07, 0.14, 1)
+abyss_color_b = Color(0.03, 0.11, 0.1, 1)
+ember_color = Color(0.45, 0.75, 1, 1)
+fog_color = Color(0.015, 0.03, 0.05, 1)
+layout = PackedStringArray(".....0123.....", "....123401....", "...23012340...", "...01234012...", "..1234012340..", "..3401231234..", "XX1230412302XX", "..XX0123XX....", "..............", "..............", "..............", "..............", "..............", "..............", "..............", "..............")

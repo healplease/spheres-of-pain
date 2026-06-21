@@ -1,17 +1,17 @@
-[gd_resource type="Resource" script_class="LevelResource" format=3]
+[gd_resource type="Resource" script_class="LevelResource" load_steps=2 format=3]
 
-[ext_resource type="Script" path="res://scripts/core/level_resource.gd" id="1_y2tey"]
+[ext_resource type="Script" path="res://scripts/core/level_resource.gd" id="1_lvl"]
 
 [resource]
-script = ExtResource("1_y2tey")
+script = ExtResource("1_lvl")
 id = 13
-title = "The Sunken Choir"
-lore_fragment = "Rows of stalls under black water, each still facing the altar. Each still full."
-width = 13
-num_colors = 5
+title = "Dead Men and Drums"
+lore_fragment = "Stone that will not break, skin that will not hold. Pick your angle and pray it bounces true."
+width = 11
+num_colors = 4
 danger_row = 15
-par_shots = 14
-layout = PackedStringArray("0123401234012", "X234012340123", "01234X1234012", "3401234X12340", "1234012340X23", ".............", ".............", ".............", ".............", ".............", ".............", ".............", ".............", ".............", ".............")
-abyss_color_a = Color(0.04, 0.07, 0.12, 1)
-ember_color = Color(0.45, 0.72, 0.92, 1)
-fog_color = Color(0.02, 0.03, 0.045, 1)
+abyss_color_a = Color(0.1, 0.1, 0.07, 1)
+abyss_color_b = Color(0.06, 0.08, 0.06, 1)
+ember_color = Color(0.7, 0.95, 0.6, 1)
+fog_color = Color(0.03, 0.035, 0.025, 1)
+layout = PackedStringArray("01230123012", "12301230123", "230X1230B30", "301B2301X01", "01230123012", "...........", "...........", "...........", "...........", "...........", "...........", "...........", "...........", "...........", "...........")

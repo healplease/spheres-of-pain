@@ -21,10 +21,6 @@ const VIG_SLIGHT := 0.45  # vignette intensity at two rows (rim only)
 const VIG_INTENSE := 1.0  # vignette intensity at one row (heavy injury)
 const VIG_EDGE_FAR := 0.62  # vignette confined to the screen rim
 const VIG_EDGE_NEAR := 0.42  # reaches further in for the one-row injury look
-const CLOSE_INTENSITY := 1.0  # the lose payoff drives the vignette to full
-const CLOSE_EDGE := 0.05  # ...and reaches almost to the centre — the dark closes in
-const CLOSE_TIME := 1.4  # seconds for the close-out to swallow the screen
-const PULSE_DECAY := 2.2  # how fast the big-clear throb bleeds off (units/sec; ~0.5 s tail)
 
 var _line_mat: ShaderMaterial  # the bottom miss-exit bar (danger_line.gdshader)
 var _vig_mat: ShaderMaterial  # the red injury vignette (danger_vignette.gdshader)
@@ -35,9 +31,6 @@ var _tier := DangerTier.NONE
 # while the rate is tweened (tweening sin(TIME*speed) directly spikes on rate change).
 var _phase := 0.0
 var _speed := DANGER_LINE_AMBIENT
-# One-shot inward "constriction" throb on big clears (E2.8): a spike set by pulse(), bled off
-# each frame and pushed to the vignette's pulse_burst uniform. Fast attack, slow-ish decay.
-var _pulse := 0.0
 
 
 ## Bind the two shader materials and seed every uniform we later tween so
@@ -47,20 +40,16 @@ func setup(line_mat: ShaderMaterial, vig_mat: ShaderMaterial) -> void:
 	_vig_mat = vig_mat
 	_vig_mat.set_shader_parameter("intensity", 0.0)
 	_vig_mat.set_shader_parameter("edge", VIG_EDGE_FAR)
-	_vig_mat.set_shader_parameter("pulse_burst", 0.0)
 
 
 func _process(delta: float) -> void:
 	# Runs every frame (including through the game-over fade) so the throb stays
 	# smooth no matter how _speed is being tweened. fmod keeps the phase small.
 	_phase = fmod(_phase + _speed * delta, TAU)
-	if _pulse > 0.0:
-		_pulse = maxf(0.0, _pulse - PULSE_DECAY * delta)
 	if _line_mat:
 		_line_mat.set_shader_parameter("phase", _phase)
 	if _vig_mat:
 		_vig_mat.set_shader_parameter("phase", _phase)
-		_vig_mat.set_shader_parameter("pulse_burst", _pulse)
 
 
 ## The danger tier for a given rows-to-line, as a DangerTier: SLOW at exactly two rows, FAST at
@@ -120,37 +109,6 @@ func set_tier(rows_left: int, game_over: bool) -> void:
 	_tween_param(tw, _vig_mat, "edge", vig_edge)
 	# Ramp the blink *rate*; _process integrates it into a continuous phase.
 	tw.tween_property(self, "_speed", line_speed, DANGER_FADE)
-	_tween = tw
-
-
-## Fire a one-shot inward constriction throb (E2.8), e.g. on a big clear. `strength` (0..1) is
-## scaled by the Effects-Intensity slider and taken as the max of any throb still decaying, so
-## back-to-back clears reinforce rather than stomp. _process bleeds it back to 0.
-func pulse(strength: float) -> void:
-	_pulse = clampf(maxf(_pulse, strength * Settings.fx_intensity()), 0.0, 1.0)
-
-
-## The lose payoff (E2.7): instead of receding on game-over, the red injury vignette closes
-## INWARD to swallow the screen. Overrides the tier fade (kills its tween) and parks the tier
-## at NONE so a later set_tier no-op can't fight it. The CPU phase keeps throbbing as it
-## closes. Pair with the controller's black-fill + desaturation for the full close.
-func close_out() -> void:
-	if _tween and _tween.is_valid():
-		_tween.kill()
-	_tier = DangerTier.NONE
-	var tw := create_tween().set_parallel(true)
-	tw.tween_method(
-		func(v: float) -> void: _vig_mat.set_shader_parameter("intensity", v),
-		float(_vig_mat.get_shader_parameter("intensity")),
-		CLOSE_INTENSITY,
-		CLOSE_TIME
-	)
-	tw.tween_method(
-		func(v: float) -> void: _vig_mat.set_shader_parameter("edge", v),
-		float(_vig_mat.get_shader_parameter("edge")),
-		CLOSE_EDGE,
-		CLOSE_TIME
-	)
 	_tween = tw
 
 

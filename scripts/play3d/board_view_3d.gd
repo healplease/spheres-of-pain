@@ -28,24 +28,14 @@ const PALETTE: Array[Color] = [
 # Animation tuning.
 const SPAWN_TIME := 0.25  # grow-from-a-point duration for newly created spheres
 const POP_TIME := 0.20  # expand-and-fade duration for cleared spheres
-# A dying sphere swells as it fades, but unevenly — wider than it is tall — so the pop reads
-# as a heavy collapse, not a clean balloon (E2.5's "deform little, settle slowly").
-const POP_SQUASH := Vector3(1.4, 1.12, 1.4)
+const POP_SCALE := 1.3  # how far a dying sphere swells before vanishing
 const POP_STAGGER := 0.1  # extra delay per unit of hex distance from the pop origin
-# Emission flash on pop (E2.5): a dim blood-red glow from WITHIN as the soul is unmade —
-# more sinister than albedo. Instant rise, slow ebb across the pop; gated by fx_intensity.
-const POP_FLASH_COLOR := Color(0.7, 0.04, 0.05)
-const POP_FLASH_ENERGY := 1.6  # peaks above the glow threshold (1.0) so it blooms briefly
 
 # Spin rotation: spheres shrink, slide one slot anti-clockwise, then grow back.
 const SPIN_SHRINK_TIME := 0.10  # contract before the slide
 const SPIN_MOVE_TIME := 0.15  # glide to the next anti-clockwise cell
 const SPIN_GROW_TIME := 0.10  # settle back to full size
 const SPIN_SHRINK_SCALE := 0.8  # how small a sphere pulls in while travelling
-
-# Tide descent: the whole field glides one drop deeper. A touch slower than a spin slide and
-# eased-in (accelerating downward) so the drop reads as weight, not a twitch.
-const DESCEND_TIME := 0.18
 
 var model: GridModel
 var diameter := 56.0
@@ -56,17 +46,8 @@ var _specials: Dictionary  # indestructible sentinel (< 0) -> Material
 var _spheres: Dictionary = {}  # Vector2i -> MeshInstance3D (live spheres only)
 
 
-## Store the model + shared assets and (by default) build the whole field at once. Pass
-## `p_build = false` to skip the immediate build and drive it in time-sliced chunks via
-## build_async() instead — the play scene does this so a large field never freezes the
-## window; the editor uses the default synchronous build for its small authored boards.
 func setup(
-	p_model: GridModel,
-	p_mesh: Mesh,
-	p_mats: Array,
-	p_specials: Dictionary,
-	p_diameter: float,
-	p_build := true
+	p_model: GridModel, p_mesh: Mesh, p_mats: Array, p_specials: Dictionary, p_diameter: float
 ) -> void:
 	model = p_model
 	_mesh = p_mesh
@@ -74,8 +55,7 @@ func setup(
 	_specials = p_specials
 	diameter = p_diameter
 	_s = 1.0 / p_diameter  # world scale follows the configured sphere size
-	if p_build:
-		_build_all()
+	_build_all()
 
 
 ## Board-local 3D position of a cell (the node sits at the board origin).
@@ -88,31 +68,6 @@ func cell_local(cell: Vector2i) -> Vector3:
 func _build_all() -> void:
 	for cell in model.cells:
 		_spawn(cell, model.cells[cell], true)
-
-
-## Time-sliced version of _build_all: spawn the field in chunks of `chunk_size` spheres,
-## yielding a frame between chunks so building a large board (up to ~2500 nodes) never
-## blocks the main thread. `on_progress` (a Callable taking done:int, total:int) is invoked
-## after each chunk so a loading bar can track the build. Awaitable — completes once every
-## sphere exists. Creating many MeshInstance3D + add_child must stay on the main thread
-## (the scene tree isn't thread-safe), so this cooperatively spreads the work, it doesn't
-## thread it.
-func build_async(chunk_size: int, on_progress: Callable) -> void:
-	var tree := get_tree()  # cached so a scene change mid-build can't null-deref get_tree()
-	var cells := model.cells.keys()
-	var total := cells.size()
-	var done := 0
-	for cell in cells:
-		_spawn(cell, model.cells[cell], true)
-		done += 1
-		if done % chunk_size == 0:
-			if on_progress.is_valid():
-				on_progress.call(done, total)
-			await tree.process_frame
-			if not is_inside_tree():
-				return  # the level was left mid-build; stop touching the tree
-	if on_progress.is_valid():
-		on_progress.call(total, total)
 
 
 ## Reconcile the view with the model after a field change, diffing against the
@@ -204,42 +159,6 @@ func animate_spin(moves: Array) -> float:
 	return SPIN_SHRINK_TIME + SPIN_MOVE_TIME + SPIN_GROW_TIME
 
 
-## Physically animate the tide dropping the whole field: every move slides its existing sphere
-## node from `from` to `to` (a uniform downward shift — colour rides with the node, no recolour).
-## The shift is a bijection (a cell's destination is the source of the cell `rows` below), so the
-## same two-pass re-key as animate_spin is needed before tweening — erase all sources, then place
-## every node at its destination — or a deeper cell's move would clobber a shallower node. Each
-## node then glides down. Returns the settle time (seconds) so the controller can hold the verdict.
-func animate_descend(moves: Array) -> float:
-	if moves.is_empty():
-		return 0.0
-	# Pass 1: snapshot the live nodes by their source cell before touching _spheres.
-	var hops: Array = []  # [{node: MeshInstance3D, to: Vector2i}]
-	for move in moves:
-		var from: Vector2i = move["from"]
-		if not _spheres.has(from):
-			continue  # defensive: model/view drift — skip rather than crash
-		hops.append({"node": _spheres[from], "to": move["to"]})
-	if hops.is_empty():
-		return 0.0
-	# Pass 2: re-key. Erase all sources first, then place every node at its destination.
-	for move in moves:
-		_spheres.erase(move["from"])
-	for hop in hops:
-		_spheres[hop["to"]] = hop["node"]
-	# Pass 3: glide each node to its new (deeper) cell, accelerating down for weight.
-	for hop in hops:
-		var mi: MeshInstance3D = hop["node"]
-		var tw := mi.create_tween()
-		(
-			tw
-			. tween_property(mi, "position", cell_local(hop["to"]), DESCEND_TIME)
-			. set_trans(Tween.TRANS_QUAD)
-			. set_ease(Tween.EASE_IN)
-		)
-	return DESCEND_TIME
-
-
 ## Single source of truth for the colour -> material map, shared by the board, the
 ## projectile, and the muzzle so they can never drift. Any indestructible sentinel
 ## (< 0: BLACK/SPIN/BOUNCE) looks its material up in `specials`; any breakable id
@@ -302,7 +221,7 @@ func _play_pop(mi: MeshInstance3D) -> void:
 	# not per sphere — a big clear would otherwise machine-gun the pop sample.
 	var tw := mi.create_tween()
 	tw.set_parallel(true)
-	tw.tween_property(mi, "scale", POP_SQUASH, POP_TIME).set_ease(Tween.EASE_OUT)
+	tw.tween_property(mi, "scale", Vector3.ONE * POP_SCALE, POP_TIME).set_ease(Tween.EASE_OUT)
 	# Alpha fade needs a per-instance StandardMaterial3D (shared across same-colour
 	# spheres, so duplicate it). Black/obstacle spheres carry a ShaderMaterial, not a
 	# StandardMaterial3D — only breakables pop today, but guard the cast so a future
@@ -312,16 +231,4 @@ func _play_pop(mi: MeshInstance3D) -> void:
 		m.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
 		mi.material_override = m
 		tw.tween_property(m, "albedo_color:a", 0.0, POP_TIME).set_ease(Tween.EASE_OUT)
-		# Glow from within as the soul is unmade: spike emission to a dim blood-red, then ebb
-		# it fast-out across the pop (a quick flare with a lingering tail). Skipped at fx 0.
-		var fx := Settings.fx_intensity()
-		if fx > 0.0:
-			m.emission = POP_FLASH_COLOR
-			m.emission_energy_multiplier = POP_FLASH_ENERGY * fx
-			(
-				tw
-				. tween_property(m, "emission_energy_multiplier", 0.0, POP_TIME)
-				. set_trans(Tween.TRANS_EXPO)
-				. set_ease(Tween.EASE_OUT)
-			)
 	tw.finished.connect(mi.queue_free)

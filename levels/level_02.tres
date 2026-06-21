@@ -1,18 +1,17 @@
-[gd_resource type="Resource" script_class="LevelResource" format=3]
+[gd_resource type="Resource" script_class="LevelResource" load_steps=2 format=3]
 
-[ext_resource type="Script" path="res://scripts/core/level_resource.gd" id="1_6exii"]
+[ext_resource type="Script" path="res://scripts/core/level_resource.gd" id="1_lvl"]
 
 [resource]
-script = ExtResource("1_6exii")
+script = ExtResource("1_lvl")
 id = 2
-title = "Knucklebone Run"
-lore_fragment = "A scattering of small bones. They click as they fall, like counting."
-width = 9
+title = "Cold Cradle"
+lore_fragment = "Each orb is a soul the stone would not surrender. Match like to like, and it is let go."
+width = 10
 num_colors = 3
 danger_row = 14
-par_shots = 9
-layout = PackedStringArray("112002211", "021120210", "210201021", "002112200", ".........", ".........", ".........", ".........", ".........", ".........", ".........", ".........", ".........", ".........")
-abyss_color_a = Color(0.14, 0.04, 0.05, 1)
-abyss_color_b = Color(0.08, 0.05, 0.04, 1)
-ember_color = Color(1, 0.55, 0.3, 1)
-fog_color = Color(0.04, 0.02, 0.025, 1)
+abyss_color_a = Color(0.05, 0.08, 0.16, 1)
+abyss_color_b = Color(0.04, 0.1, 0.12, 1)
+ember_color = Color(0.6, 0.8, 1, 1)
+fog_color = Color(0.02, 0.03, 0.05, 1)
+layout = PackedStringArray("0112200211", "1.020112.0", "02211.0220", ".101220.11", "20.011202.", "..........", "..........", "..........", "..........", "..........", "..........", "..........", "..........", "..........")

@@ -30,7 +30,6 @@ func apply_all() -> void:
 	apply_aa()
 	apply_audio()
 	apply_text_effects()
-	apply_fx_intensity()
 	graphics_changed.emit()  # sync any already-running level's env/aim
 	(
 		Log
@@ -119,13 +118,6 @@ func apply_text_effects() -> void:
 	)
 
 
-## The master juice multiplier. Pushed to the RenderingServer as a global shader param
-## so shader-driven effects (e.g. the danger-vignette pulse) read it directly; code-driven
-## effects (camera shake, particles, slow-mo, audio stings) read fx_intensity() instead.
-func apply_fx_intensity() -> void:
-	RenderingServer.global_shader_parameter_set(&"fx_intensity", store.get_fx_intensity())
-
-
 # --- setters the Settings UI calls (mutate store -> auto-save -> apply) -------
 
 
@@ -188,11 +180,6 @@ func set_text_glitch(v: bool) -> void:
 	apply_text_effects()
 
 
-func set_fx_intensity(v: float) -> void:
-	store.set_fx_intensity(v)
-	apply_fx_intensity()
-
-
 func set_volume(channel: StringName, v: float) -> void:
 	store.set_volume(channel, v)
 	apply_audio()
@@ -245,12 +232,6 @@ func shadows() -> int:
 
 func text_glitch() -> bool:
 	return store.get_text_glitch()
-
-
-## Master juice multiplier (0..1) for code-driven game-feel effects. Shaders read the
-## `fx_intensity` global param instead (see apply_fx_intensity).
-func fx_intensity() -> float:
-	return store.get_fx_intensity()
 
 
 ## Resolution candidates that fit the current monitor, plus the saved choice,

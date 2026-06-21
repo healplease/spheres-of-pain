@@ -30,7 +30,6 @@ static func emit(
 		var dir := seg / seg_len
 		var local := 0.0  # distance walked within this segment
 		while local < seg_len:
-			var prev := local
 			var into := fmod(s + local, cycle)  # position within the current dot's cycle
 			if into < dot:
 				var run: float = minf(dot - into, seg_len - local)  # rest of this dot on this seg
@@ -38,11 +37,6 @@ static func emit(
 				local += run
 			else:
 				local += cycle - into  # inside the gap: jump to the next dot
-			# Guard against a sub-ULP step: at large coordinate magnitudes the increment near a
-			# segment's end can be smaller than the float ULP, so `local` stops advancing and the
-			# loop would spin forever. If it can't move, we're effectively at the end — stop.
-			if local <= prev:
-				break
 		s += seg_len
 
 
