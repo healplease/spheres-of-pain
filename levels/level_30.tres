@@ -1,0 +1,18 @@
+[gd_resource type="Resource" script_class="LevelResource" format=3]
+
+[ext_resource type="Script" path="res://scripts/core/level_resource.gd" id="1_ijgj8"]
+
+[resource]
+script = ExtResource("1_ijgj8")
+id = 30
+title = "The Warden's Wards"
+lore_fragment = "The Warden left wards even in a grave it never visits. Break them; free what they kept."
+width = 16
+num_colors = 7
+danger_row = 14
+layout = PackedStringArray("0@234560123456@0", "X2345X0S23456X02", "X123456X12345X12", "X2345X02345X0123", "................", "................", "................", "................", "................", "................", "................", "................", "................", "................")
+objective_type = 1
+objective_color = 6
+abyss_color_a = Color(0.11, 0.08, 0.07, 1)
+abyss_color_b = Color(0.07, 0.06, 0.06, 1)
+fog_color = Color(0.03, 0.025, 0.02, 1)

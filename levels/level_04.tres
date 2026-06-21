@@ -1,17 +1,16 @@
-[gd_resource type="Resource" script_class="LevelResource" load_steps=2 format=3]
+[gd_resource type="Resource" script_class="LevelResource" format=3]
 
-[ext_resource type="Script" path="res://scripts/core/level_resource.gd" id="1_lvl"]
+[ext_resource type="Script" path="res://scripts/core/level_resource.gd" id="1_nogss"]
 
 [resource]
-script = ExtResource("1_lvl")
+script = ExtResource("1_nogss")
 id = 4
-title = "Hollow Choir"
-lore_fragment = "Release the choir and the singing stops. They will not thank you for the silence."
-width = 12
-num_colors = 4
-danger_row = 15
-abyss_color_a = Color(0.04, 0.12, 0.11, 1)
-abyss_color_b = Color(0.05, 0.08, 0.13, 1)
-ember_color = Color(0.5, 1, 0.85, 1)
-fog_color = Color(0.02, 0.04, 0.04, 1)
-layout = PackedStringArray("012301230123", "123012300321", "23103..21302", "302X....X013", "0132....2310", "1X20....0123", "............", "............", "............", "............", "............", "............", "............", "............", "............")
+title = "Where Roads Rejoin"
+lore_fragment = "Two ways down meet again at the foot of the stair. The work is the same either way."
+danger_row = 14
+par_shots = 11
+layout = PackedStringArray("01230123012", "12301230123", "23012301230", "30123012301", "...........", "...........", "...........", "...........", "...........", "...........", "...........", "...........", "...........", "...........")
+abyss_color_a = Color(0.14, 0.04, 0.05, 1)
+abyss_color_b = Color(0.08, 0.05, 0.04, 1)
+ember_color = Color(1, 0.55, 0.3, 1)
+fog_color = Color(0.04, 0.02, 0.025, 1)

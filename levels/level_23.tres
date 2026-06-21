@@ -1,0 +1,17 @@
+[gd_resource type="Resource" script_class="LevelResource" format=3]
+
+[ext_resource type="Script" path="res://scripts/core/level_resource.gd" id="1_laq7o"]
+
+[resource]
+script = ExtResource("1_laq7o")
+id = 23
+title = "The Sealed Diamond"
+lore_fragment = "Two paths around a furnace, closing to one. The fire between them never went cold."
+width = 15
+num_colors = 5
+danger_row = 14
+par_shots = 18
+layout = PackedStringArray("X12340123401234", "X2340X234S01234", "012340123401234", "X2340X2340X2340", "...............", "...............", "...............", "...............", "...............", "...............", "...............", "...............", "...............", "...............")
+abyss_color_a = Color(0.11, 0.08, 0.07, 1)
+abyss_color_b = Color(0.07, 0.06, 0.06, 1)
+fog_color = Color(0.03, 0.025, 0.02, 1)

@@ -1,0 +1,277 @@
+[gd_resource type="Resource" script_class="WorldGraphResource" format=3]
+
+[ext_resource type="Script" path="res://scripts/core/map_node_resource.gd" id="1_psyd6"]
+[ext_resource type="Script" path="res://scripts/core/world_graph_resource.gd" id="2_a0dfq"]
+
+[sub_resource type="Resource" id="Resource_ry2px"]
+script = ExtResource("1_psyd6")
+id = 1
+node_kind = 0
+map_position = Vector2(400, 100)
+prerequisites = PackedInt32Array()
+successors = PackedInt32Array(2, 9)
+
+[sub_resource type="Resource" id="Resource_hp5t3"]
+script = ExtResource("1_psyd6")
+id = 2
+map_position = Vector2(400, 300)
+prerequisites = PackedInt32Array(1)
+successors = PackedInt32Array(3, 6)
+
+[sub_resource type="Resource" id="Resource_vqdb2"]
+script = ExtResource("1_psyd6")
+id = 3
+map_position = Vector2(430, 500)
+prerequisites = PackedInt32Array(2)
+successors = PackedInt32Array(4, 10)
+
+[sub_resource type="Resource" id="Resource_1okhs"]
+script = ExtResource("1_psyd6")
+id = 4
+map_position = Vector2(400, 700)
+prerequisites = PackedInt32Array(3, 8)
+successors = PackedInt32Array(5)
+
+[sub_resource type="Resource" id="Resource_adsjy"]
+script = ExtResource("1_psyd6")
+id = 5
+node_kind = 5
+map_position = Vector2(400, 900)
+prerequisites = PackedInt32Array(4)
+successors = PackedInt32Array(11)
+summary = "The first warden. Stone spin-wheels turn the count against you."
+
+[sub_resource type="Resource" id="Resource_2lfwj"]
+script = ExtResource("1_psyd6")
+id = 6
+node_kind = 3
+map_position = Vector2(600, 380)
+prerequisites = PackedInt32Array(2)
+successors = PackedInt32Array(7, 8)
+summary = "A harder side-crypt. One way ends; the other rejoins the descent."
+
+[sub_resource type="Resource" id="Resource_s4aey"]
+script = ExtResource("1_psyd6")
+id = 7
+node_kind = 4
+map_position = Vector2(760, 320)
+prerequisites = PackedInt32Array(6)
+successors = PackedInt32Array()
+summary = "Dead end. Free the small soul caged in the stones — the path ends here."
+
+[sub_resource type="Resource" id="Resource_1nqh5"]
+script = ExtResource("1_psyd6")
+id = 8
+node_kind = 2
+map_position = Vector2(620, 600)
+prerequisites = PackedInt32Array(6)
+successors = PackedInt32Array(4)
+summary = "A harder branch that merges back into the spine below."
+
+[sub_resource type="Resource" id="Resource_6p1iy"]
+script = ExtResource("1_psyd6")
+id = 9
+node_kind = 4
+map_position = Vector2(200, 180)
+prerequisites = PackedInt32Array(1)
+successors = PackedInt32Array()
+summary = "Dead end. A soul to free, and no way onward — only back."
+
+[sub_resource type="Resource" id="Resource_kmgta"]
+script = ExtResource("1_psyd6")
+id = 10
+node_kind = 4
+map_position = Vector2(250, 560)
+prerequisites = PackedInt32Array(3)
+successors = PackedInt32Array()
+summary = "Dead end. Cleanse the cursed cell. The lore is the only reward."
+
+[sub_resource type="Resource" id="Resource_ayhne"]
+script = ExtResource("1_psyd6")
+id = 11
+region_id = 1
+node_kind = 0
+map_position = Vector2(400, 1100)
+prerequisites = PackedInt32Array(5)
+successors = PackedInt32Array(12, 16)
+
+[sub_resource type="Resource" id="Resource_3cs0o"]
+script = ExtResource("1_psyd6")
+id = 12
+region_id = 1
+map_position = Vector2(380, 1300)
+prerequisites = PackedInt32Array(11)
+successors = PackedInt32Array(13, 17)
+
+[sub_resource type="Resource" id="Resource_xdebh"]
+script = ExtResource("1_psyd6")
+id = 13
+region_id = 1
+map_position = Vector2(400, 1500)
+prerequisites = PackedInt32Array(12, 17)
+successors = PackedInt32Array(14, 18)
+
+[sub_resource type="Resource" id="Resource_o8vw5"]
+script = ExtResource("1_psyd6")
+id = 14
+region_id = 1
+map_position = Vector2(400, 1700)
+prerequisites = PackedInt32Array(13, 20)
+successors = PackedInt32Array(15)
+
+[sub_resource type="Resource" id="Resource_nohf6"]
+script = ExtResource("1_psyd6")
+id = 15
+region_id = 1
+node_kind = 5
+map_position = Vector2(400, 1900)
+prerequisites = PackedInt32Array(14)
+successors = PackedInt32Array(21)
+summary = "The drowned conductor. The water rises a little with every shot."
+
+[sub_resource type="Resource" id="Resource_bbc7o"]
+script = ExtResource("1_psyd6")
+id = 16
+region_id = 1
+node_kind = 4
+map_position = Vector2(200, 1180)
+prerequisites = PackedInt32Array(11)
+successors = PackedInt32Array()
+summary = "Dead end. Cleanse the cursed cell; read what was sworn here."
+
+[sub_resource type="Resource" id="Resource_wum45"]
+script = ExtResource("1_psyd6")
+id = 17
+region_id = 1
+node_kind = 2
+map_position = Vector2(600, 1380)
+prerequisites = PackedInt32Array(12)
+successors = PackedInt32Array(13)
+summary = "A harder branch that rejoins the choir."
+
+[sub_resource type="Resource" id="Resource_m81ws"]
+script = ExtResource("1_psyd6")
+id = 18
+region_id = 1
+node_kind = 3
+map_position = Vector2(610, 1560)
+prerequisites = PackedInt32Array(13)
+successors = PackedInt32Array(19, 20)
+summary = "A hard fork: one arm is a dead chapel, one rejoins the spine."
+
+[sub_resource type="Resource" id="Resource_mpxja"]
+script = ExtResource("1_psyd6")
+id = 19
+region_id = 1
+node_kind = 4
+map_position = Vector2(780, 1520)
+prerequisites = PackedInt32Array(18)
+successors = PackedInt32Array()
+summary = "Dead end. Free the soul sealed behind the wall."
+
+[sub_resource type="Resource" id="Resource_kutba"]
+script = ExtResource("1_psyd6")
+id = 20
+region_id = 1
+node_kind = 2
+map_position = Vector2(620, 1720)
+prerequisites = PackedInt32Array(18)
+successors = PackedInt32Array(14)
+summary = "A flooding branch (the tide rises) that merges back to the spine."
+
+[sub_resource type="Resource" id="Resource_ifkqw"]
+script = ExtResource("1_psyd6")
+id = 21
+region_id = 2
+node_kind = 0
+map_position = Vector2(400, 2100)
+prerequisites = PackedInt32Array(15)
+successors = PackedInt32Array(22, 27)
+
+[sub_resource type="Resource" id="Resource_tusvo"]
+script = ExtResource("1_psyd6")
+id = 22
+region_id = 2
+map_position = Vector2(400, 2300)
+prerequisites = PackedInt32Array(21)
+successors = PackedInt32Array(23, 26)
+
+[sub_resource type="Resource" id="Resource_6aqer"]
+script = ExtResource("1_psyd6")
+id = 23
+region_id = 2
+map_position = Vector2(400, 2500)
+prerequisites = PackedInt32Array(22, 26)
+successors = PackedInt32Array(24)
+
+[sub_resource type="Resource" id="Resource_a6ffn"]
+script = ExtResource("1_psyd6")
+id = 24
+region_id = 2
+map_position = Vector2(400, 2700)
+prerequisites = PackedInt32Array(23)
+successors = PackedInt32Array(25, 28)
+
+[sub_resource type="Resource" id="Resource_tf26d"]
+script = ExtResource("1_psyd6")
+id = 25
+region_id = 2
+node_kind = 5
+map_position = Vector2(400, 2900)
+prerequisites = PackedInt32Array(24)
+successors = PackedInt32Array()
+summary = "The final guard. Few shots, spin and bounce against you, and a rising tide of ash."
+
+[sub_resource type="Resource" id="Resource_aumih"]
+script = ExtResource("1_psyd6")
+id = 26
+region_id = 2
+node_kind = 2
+map_position = Vector2(600, 2400)
+prerequisites = PackedInt32Array(22)
+successors = PackedInt32Array(23)
+summary = "A hard branch around the furnace; it closes the diamond back onto the spine."
+
+[sub_resource type="Resource" id="Resource_iwumt"]
+script = ExtResource("1_psyd6")
+id = 27
+region_id = 2
+node_kind = 4
+map_position = Vector2(190, 2180)
+prerequisites = PackedInt32Array(21)
+successors = PackedInt32Array()
+summary = "Dead end. The hardest rescue in the pit — seven colours, deep ash, no way on."
+
+[sub_resource type="Resource" id="Resource_2bghx"]
+script = ExtResource("1_psyd6")
+id = 28
+region_id = 2
+node_kind = 3
+map_position = Vector2(610, 2760)
+prerequisites = PackedInt32Array(24)
+successors = PackedInt32Array(29, 30)
+summary = "A hard fork onto two dead vaults — lore only, both ways."
+
+[sub_resource type="Resource" id="Resource_1g3ds"]
+script = ExtResource("1_psyd6")
+id = 29
+region_id = 2
+node_kind = 4
+map_position = Vector2(780, 2720)
+prerequisites = PackedInt32Array(28)
+successors = PackedInt32Array()
+summary = "Dead end. Cleanse the cursed cell to read the ash's memory."
+
+[sub_resource type="Resource" id="Resource_yx0n3"]
+script = ExtResource("1_psyd6")
+id = 30
+region_id = 2
+node_kind = 4
+map_position = Vector2(700, 2880)
+prerequisites = PackedInt32Array(28)
+successors = PackedInt32Array()
+summary = "Dead end. Nine wards of iron guard one soul — the meanest board down here."
+
+[resource]
+script = ExtResource("2_a0dfq")
+nodes = Array[ExtResource("1_psyd6")]([SubResource("Resource_ry2px"), SubResource("Resource_hp5t3"), SubResource("Resource_vqdb2"), SubResource("Resource_1okhs"), SubResource("Resource_adsjy"), SubResource("Resource_2lfwj"), SubResource("Resource_s4aey"), SubResource("Resource_1nqh5"), SubResource("Resource_6p1iy"), SubResource("Resource_kmgta"), SubResource("Resource_ayhne"), SubResource("Resource_3cs0o"), SubResource("Resource_xdebh"), SubResource("Resource_o8vw5"), SubResource("Resource_nohf6"), SubResource("Resource_bbc7o"), SubResource("Resource_wum45"), SubResource("Resource_m81ws"), SubResource("Resource_mpxja"), SubResource("Resource_kutba"), SubResource("Resource_ifkqw"), SubResource("Resource_tusvo"), SubResource("Resource_6aqer"), SubResource("Resource_a6ffn"), SubResource("Resource_tf26d"), SubResource("Resource_aumih"), SubResource("Resource_iwumt"), SubResource("Resource_2bghx"), SubResource("Resource_1g3ds"), SubResource("Resource_yx0n3")])

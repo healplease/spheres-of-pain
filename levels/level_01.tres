@@ -1,17 +1,17 @@
-[gd_resource type="Resource" script_class="LevelResource" load_steps=2 format=3]
+[gd_resource type="Resource" script_class="LevelResource" format=3]
 
-[ext_resource type="Script" path="res://scripts/core/level_resource.gd" id="1_lvl"]
+[ext_resource type="Script" path="res://scripts/core/level_resource.gd" id="1_xsp1e"]
 
 [resource]
-script = ExtResource("1_lvl")
-id = 1
+script = ExtResource("1_xsp1e")
 title = "The Shallow Vein"
 lore_fragment = "You come down into the Ossuary. Here the dead lie shallow — begin with them."
 width = 9
 num_colors = 3
 danger_row = 14
+par_shots = 8
+layout = PackedStringArray("012201120", "120012201", "201120012", "021210102", ".........", ".........", ".........", ".........", ".........", ".........", ".........", ".........", ".........", ".........")
 abyss_color_a = Color(0.14, 0.04, 0.05, 1)
 abyss_color_b = Color(0.08, 0.05, 0.04, 1)
 ember_color = Color(1, 0.55, 0.3, 1)
 fog_color = Color(0.04, 0.02, 0.025, 1)
-layout = PackedStringArray("001122001", "110220112", "012012210", "201101022", ".........", ".........", ".........", ".........", ".........", ".........", ".........", ".........", ".........", ".........")

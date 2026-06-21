@@ -1,0 +1,17 @@
+[gd_resource type="Resource" script_class="LevelResource" format=3]
+
+[ext_resource type="Script" path="res://scripts/core/level_resource.gd" id="1_wrjf6"]
+
+[resource]
+script = ExtResource("1_wrjf6")
+id = 22
+title = "The Turning Eye"
+lore_fragment = "A great burnt iris set in the floor, still tracking whatever moves."
+width = 14
+num_colors = 5
+danger_row = 14
+par_shots = 16
+layout = PackedStringArray("01234012340123", "X234S012340X23", "01234012340123", "X23401234X1234", "..............", "..............", "..............", "..............", "..............", "..............", "..............", "..............", "..............", "..............")
+abyss_color_a = Color(0.11, 0.08, 0.07, 1)
+abyss_color_b = Color(0.07, 0.06, 0.06, 1)
+fog_color = Color(0.03, 0.025, 0.02, 1)

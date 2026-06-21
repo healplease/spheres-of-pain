@@ -1,26 +1,29 @@
 extends GutTest
 
-## Integration: the play scene driven by a selected level — win/lose end flow,
-## unlock side-effect, and the level-loading branch of the controller.
-## GameState's progress is swapped to a throwaway file for the duration.
+## Integration: the play scene driven by a selected campaign node — win/lose end flow, the
+## completion side-effect (now a set-based WorldProgress mark + just_completed flag), and the
+## level-loading + specials branches of the controller. GameState's progress is swapped to a
+## throwaway file for the duration so the real save is never touched.
 
-const TEST_SAVE := "user://test_progress_flow.cfg"
+const TEST_SAVE := "user://test_world_flow.cfg"
 const PLAY_SCENE := preload("res://scenes/level_3d.tscn")
 
-var _saved_progress: ProgressStore
+var _saved_progress: WorldProgress
 
 
 func before_each() -> void:
 	_saved_progress = GameState.progress
 	if FileAccess.file_exists(TEST_SAVE):
 		DirAccess.remove_absolute(ProjectSettings.globalize_path(TEST_SAVE))
-	GameState.progress = ProgressStore.new(TEST_SAVE)
+	GameState.progress = WorldProgress.new(TEST_SAVE)
+	GameState.just_completed_id = -1
 
 
 func after_each() -> void:
 	GameState.progress = _saved_progress
 	GameState.selected_index = -1
 	GameState.selected_level = null
+	GameState.just_completed_id = -1
 	if FileAccess.file_exists(TEST_SAVE):
 		DirAccess.remove_absolute(ProjectSettings.globalize_path(TEST_SAVE))
 
@@ -34,14 +37,6 @@ func _spawn_level(index: int) -> LevelController3D:
 	return scene
 
 
-func test_controller_builds_board_from_level() -> void:
-	var scene := _spawn_level(1)
-	await wait_physics_frames(2)
-	assert_eq(scene.columns, 9, "level 1 width applied")
-	assert_eq(scene.danger_row, 14, "level 1 danger row applied")
-	assert_eq(scene.model.count_colored(), 36, "level 1 layout: 36 spheres in its top 4 rows")
-
-
 func _count_value(model: GridModel, value: int) -> int:
 	var n := 0
 	for v in model.cells.values():
@@ -50,9 +45,8 @@ func _count_value(model: GridModel, value: int) -> int:
 	return n
 
 
-## The play scene builds its board VIEW asynchronously behind a loading veil (chunked spawn
-## over a few process frames), so a fixed wait races it. Poll until every model cell has a
-## live sphere (or a generous frame cap), then callers can assert on board._spheres.
+## The play scene builds its board VIEW asynchronously behind a loading veil (chunked spawn over a
+## few process frames), so a fixed wait races it. Poll until every model cell has a live sphere.
 func _await_board_built(scene: LevelController3D) -> void:
 	var guard := 0
 	while scene.board._spheres.size() < scene.model.cells.size() and guard < 300:
@@ -60,71 +54,78 @@ func _await_board_built(scene: LevelController3D) -> void:
 		guard += 1
 
 
-func test_special_levels_build_without_error() -> void:
-	# Spawning the play scene runs the full controller: it builds the _specials map and
-	# assigns the swirl/pulse materials to every spin/bounce sphere via board._build_all.
-	# A missing dispatch key would crash here, so reaching the asserts proves the wiring.
+func test_controller_builds_board_from_level() -> void:
+	var scene := _spawn_level(1)
+	await wait_physics_frames(2)
+	assert_eq(scene.columns, 9, "level 1 width applied")
+	assert_eq(scene.danger_row, 14, "level 1 danger row applied")
+	assert_eq(scene.model.count_colored(), 36, "level 1 layout: 36 spheres in its top 4 rows")
+
+
+func test_boss_levels_build_specials_without_error() -> void:
+	# Boss boards carry spin/bounce spheres; building them runs the controller's specials wiring
+	# (swirl/pulse materials). A missing dispatch key would crash here, so reaching the asserts
+	# proves the wiring across all three bosses.
 	for spec in [
-		{"idx": 11, "spin": 1, "bounce": 0, "colored": 35},
-		{"idx": 12, "spin": 0, "bounce": 1, "colored": 35},
-		{"idx": 15, "spin": 2, "bounce": 2, "colored": 68},
+		{"idx": 5, "spin": true, "bounce": false},  # The Tally-Keeper
+		{"idx": 15, "spin": true, "bounce": true},  # The Choirmistress
+		{"idx": 25, "spin": true, "bounce": true},  # The Last Warden
 	]:
 		var scene := _spawn_level(spec.idx)
 		await _await_board_built(scene)
-		assert_eq(
-			_count_value(scene.model, GridModel.SPIN), spec.spin, "level %d spin count" % spec.idx
-		)
-		assert_eq(
-			_count_value(scene.model, GridModel.BOUNCE),
-			spec.bounce,
-			"level %d bounce count" % spec.idx
-		)
-		assert_eq(scene.model.count_colored(), spec.colored, "level %d coloured count" % spec.idx)
-		assert_false(scene.model.is_won(), "level %d not instantly won" % spec.idx)
-		# Every model cell — colours and specials alike — got a live sphere built for it.
+		assert_false(scene.model.is_won(), "boss %d not instantly won" % spec.idx)
+		if spec.spin:
+			assert_gt(_count_value(scene.model, GridModel.SPIN), 0, "boss %d has spin" % spec.idx)
+		if spec.bounce:
+			assert_gt(
+				_count_value(scene.model, GridModel.BOUNCE), 0, "boss %d has bounce" % spec.idx
+			)
 		assert_eq(
 			scene.board._spheres.size(),
 			scene.model.cells.size(),
-			"level %d board built all spheres" % spec.idx
+			"boss %d board built all spheres" % spec.idx
 		)
-		# _spawn_level registered the scene with add_child_autofree; it's freed at teardown.
 
 
-func test_win_unlocks_next_and_shows_descend() -> void:
+func test_win_marks_completed_and_returns_to_map() -> void:
 	var scene := _spawn_level(1)
 	await wait_physics_frames(2)
 	scene._end("test win", true)
-	assert_true(GameState.progress.is_unlocked(2), "winning level 1 unlocks 2")
+	assert_true(GameState.progress.is_completed(1), "winning node 1 marks it completed")
+	assert_eq(GameState.just_completed_id, 1, "the win flags the node for the map transition")
+	assert_eq(GameState.node_state(2), WorldUnlock.State.AVAILABLE, "and unlocks its successor")
 	assert_true(scene.end_panel.visible, "end panel shown")
-	assert_true(scene.next_button.visible, "next offered on a win")
-	assert_false(scene.retry_button.visible, "no retry on a win")
+	assert_false(scene.next_button.visible, "no auto-next — the branching map is the hub")
+	assert_true(scene.retry_button.visible, "retry offered on a win (replay for a better verdict)")
 
 
-func test_lose_offers_retry_without_unlock() -> void:
+func test_lose_offers_retry_without_completion() -> void:
 	var scene := _spawn_level(1)
 	await wait_physics_frames(2)
 	scene._end("test loss", false)
-	assert_false(GameState.progress.is_unlocked(2), "losing unlocks nothing")
+	assert_false(GameState.progress.is_completed(1), "losing completes nothing")
+	assert_eq(GameState.just_completed_id, -1, "a loss flags no completion")
 	assert_true(scene.end_panel.visible, "end panel shown")
 	assert_true(scene.retry_button.visible, "retry offered on a loss")
-	assert_false(scene.next_button.visible, "no descend on a loss")
+	assert_false(scene.next_button.visible, "no descend button at all now")
 
 
-func test_winning_last_level_offers_no_next() -> void:
-	var scene := _spawn_level(1)
-	await wait_physics_frames(2)
-	GameState.selected_index = GameState.LEVEL_COUNT  # pretend it was the last level
-	scene._end("test win", true)
-	assert_false(scene.next_button.visible, "no descend below the bottom")
+func test_final_boss_completes_the_descent() -> void:
+	# Logic-only (no play scene): completing the region-3 boss is what ends the whole descent.
+	assert_true(GameState.is_final_boss(25), "node 25 is the final boss")
+	assert_false(GameState.is_final_boss(5), "an earlier boss is not the final one")
+	assert_false(GameState.is_descent_complete(), "not complete on a fresh throwaway save")
+	GameState.progress.mark_completed(25)
+	assert_true(GameState.is_descent_complete(), "beating the final boss completes the descent")
 
 
 # --- secondary objectives (E3.4) ----------------------------------------------
 # Built in code (like test_level_resource's _make_level) and handed to the play scene via
-# GameState.selected_level, so no campaign-level / region coupling is needed to prove them.
+# GameState.selected_level, so no campaign-node / region coupling is needed to prove them.
 
 
 func _spawn_custom(level: LevelResource) -> LevelController3D:
-	GameState.selected_index = -1  # not a campaign level — no unlock side effects
+	GameState.selected_index = -1  # not a campaign node — no completion side effects
 	GameState.selected_level = level
 	var scene: LevelController3D = PLAY_SCENE.instantiate()
 	add_child_autofree(scene)
@@ -132,7 +133,6 @@ func _spawn_custom(level: LevelResource) -> LevelController3D:
 
 
 func _headroom(top: PackedStringArray, total_rows: int, width: int) -> PackedStringArray:
-	# Pad a small authored top with empty rows so the board has descent headroom.
 	var out := top.duplicate()
 	while out.size() < total_rows:
 		out.append(".".repeat(width))
@@ -205,7 +205,6 @@ func test_tide_eventually_drowns_the_board() -> void:
 	var scene := _spawn_custom(_tide_level())
 	await wait_physics_frames(2)
 	assert_false(scene._is_failed(), "safe at the start")
-	# Drive the tide directly (the controller does this once per shot via _apply_tide).
 	for i in range(4):
 		scene.model.descend(scene._level.tide_rows_per_shot)
 	assert_true(scene.model.is_lost(), "the tide eventually pushes the field across the line")

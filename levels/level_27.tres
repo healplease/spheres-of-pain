@@ -1,0 +1,18 @@
+[gd_resource type="Resource" script_class="LevelResource" format=3]
+
+[ext_resource type="Script" path="res://scripts/core/level_resource.gd" id="1_66syu"]
+
+[resource]
+script = ExtResource("1_66syu")
+id = 27
+title = "The Last Soul Before the Wall"
+lore_fragment = "The deepest caged thing, almost at the wall of the world. Free it. Then turn back."
+width = 16
+num_colors = 7
+danger_row = 14
+layout = PackedStringArray("0@2345601234560@", "X23456S0123456X2", "X123456012345601", "X23456X023456X23", "................", "................", "................", "................", "................", "................", "................", "................", "................", "................")
+objective_type = 1
+objective_color = 3
+abyss_color_a = Color(0.11, 0.08, 0.07, 1)
+abyss_color_b = Color(0.07, 0.06, 0.06, 1)
+fog_color = Color(0.03, 0.025, 0.02, 1)

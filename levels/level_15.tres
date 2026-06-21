@@ -1,17 +1,17 @@
-[gd_resource type="Resource" script_class="LevelResource" load_steps=2 format=3]
+[gd_resource type="Resource" script_class="LevelResource" format=3]
 
-[ext_resource type="Script" path="res://scripts/core/level_resource.gd" id="1_lvl"]
+[ext_resource type="Script" path="res://scripts/core/level_resource.gd" id="1_fjwgc"]
 
 [resource]
-script = ExtResource("1_lvl")
+script = ExtResource("1_fjwgc")
 id = 15
-title = "The Spiteful Engine"
-lore_fragment = "It turns what you place and spits back what you throw. The Last Warden is the last face in the wall."
-width = 12
-num_colors = 4
-danger_row = 16
-abyss_color_a = Color(0.12, 0.06, 0.16, 1)
-abyss_color_b = Color(0.05, 0.08, 0.13, 1)
-ember_color = Color(0.6, 0.85, 0.95, 1)
-fog_color = Color(0.03, 0.025, 0.045, 1)
-layout = PackedStringArray("012301230123", "123012301230", "23S01230B012", "301230123012", "0123S0B23012", "123012301230", "............", "............", "............", "............", "............", "............", "............", "............", "............", "............")
+title = "The Choirmistress"
+lore_fragment = "She conducts the drowned. While she sings, the flood climbs the walls toward you."
+width = 14
+num_colors = 5
+danger_row = 18
+layout = PackedStringArray("01234012340123", "X234S012340X23", "01234B12340123", "X2340123X0X234", "..............", "..............", "..............", "..............", "..............", "..............", "..............", "..............", "..............", "..............", "..............", "..............", "..............", "..............")
+tide_rows_per_shot = 2
+abyss_color_a = Color(0.04, 0.07, 0.12, 1)
+ember_color = Color(0.45, 0.72, 0.92, 1)
+fog_color = Color(0.02, 0.03, 0.045, 1)

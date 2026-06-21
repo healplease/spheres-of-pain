@@ -271,7 +271,9 @@ func _ready() -> void:
 	# Narrator autoload). The director seeds its cooldown + danger tier from the opening board.
 	var narrator_view := NarratorView.new()
 	narrator_view.setup(narrator_line, narrator_bg)
-	var region_id := GameState.region_id_for_level(_level.id) if _level != null else -1
+	var region_id := (
+		GameState.region_id_for_node(GameState.selected_index) if _level != null else -1
+	)
 	_narrator = NarratorDirector.new()
 	add_child(_narrator)
 	_narrator.setup(narrator_view, region_id, model.rows_to_danger())
@@ -862,22 +864,23 @@ func _end(msg: String, won: bool) -> void:
 	else:
 		_close_out_lose()
 	if won and _level != null:
-		GameState.complete_current()
-	# Beating the final campaign level ends the whole descent: hold the verdict a beat, let
+		GameState.complete_current(_score, Scoring.tier(_par_shots(), _shots_fired))
+	# Beating the final region's boss ends the whole descent: hold the verdict a beat, let
 	# the voice land, then move to the epilogue (its own scene) instead of the ordinary end
 	# panel. Esc still skips out to the hub during the pause.
-	if won and GameState.selected_index == GameState.LEVEL_COUNT:
+	if won and GameState.is_final_boss(GameState.selected_index):
 		_center_banner.show_end(msg, true, false, false, _epitaph(true))
 		_narrator.say("victory", true)
 		await get_tree().create_timer(3.5).timeout
 		if is_inside_tree():
 			GameState.go_to_epilogue()
 		return
-	# The visual verdict + choice panel are the CenterBanner's job; we just decide
-	# which choices apply (next only on an authored win with a level after it; retry
-	# only on an authored loss — free play has neither).
-	var show_next := won and _level != null and GameState.has_next()
-	var show_retry := not won and _level != null
+	# The visual verdict + choice panel are the CenterBanner's job; we just decide which choices
+	# apply. The descent branches, so there is no single "next" — a win returns to the world map
+	# (the menu button) to pick the next path. Retry is offered on any authored level (win or loss:
+	# replay to better the score/tier, or try again after a fall); free play has neither.
+	var show_next := false
+	var show_retry := _level != null
 	_center_banner.show_end(msg, won, show_next, show_retry, _epitaph(won))
 	# The voice has the last word, on the HUD beneath the verdict (it interrupts any
 	# clear/danger bark from the final shot). Forced — the end of a level always speaks.

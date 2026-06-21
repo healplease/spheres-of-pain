@@ -1,17 +1,19 @@
-[gd_resource type="Resource" script_class="LevelResource" load_steps=2 format=3]
+[gd_resource type="Resource" script_class="LevelResource" format=3]
 
-[ext_resource type="Script" path="res://scripts/core/level_resource.gd" id="1_lvl"]
+[ext_resource type="Script" path="res://scripts/core/level_resource.gd" id="1_iupvt"]
 
 [resource]
-script = ExtResource("1_lvl")
+script = ExtResource("1_iupvt")
 id = 9
-title = "Mother of Mouths"
-lore_fragment = "Every mouth she opens is a way in. Free them all; none of them is a way out for you."
-width = 16
-num_colors = 6
-danger_row = 16
-abyss_color_a = Color(0.16, 0.03, 0.05, 1)
-abyss_color_b = Color(0.09, 0.03, 0.1, 1)
-ember_color = Color(1, 0.35, 0.3, 1)
-fog_color = Color(0.045, 0.015, 0.025, 1)
-layout = PackedStringArray("0123450123450123", "1234501234501234", "2345012345012345", "34X501X345X012X4", "45..123..450..15", "50X.234.X501.X20", "01..345..012..31", "12X.450.X123.X42", "2X..501..234..X3", "................", "................", "................", "................", "................", "................", "................")
+title = "The First Wrong Turn"
+lore_fragment = "You turned aside almost at once. There is a soul here, and nothing else."
+width = 9
+num_colors = 3
+danger_row = 13
+layout = PackedStringArray("01@201X20", "20102@012", "1X0210210", ".........", ".........", ".........", ".........", ".........", ".........", ".........", ".........", ".........", ".........")
+objective_type = 1
+objective_color = 1
+abyss_color_a = Color(0.14, 0.04, 0.05, 1)
+abyss_color_b = Color(0.08, 0.05, 0.04, 1)
+ember_color = Color(1, 0.55, 0.3, 1)
+fog_color = Color(0.04, 0.02, 0.025, 1)
